@@ -1,0 +1,22 @@
+node_modules/
+dist/
+out/
+*.vsix
+.vscode-test/
+
+# Configurations & secrets
+trueforge.config.json
+.env
+.env.*
+!.env.example
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+*.sqlite
+trueforge.db

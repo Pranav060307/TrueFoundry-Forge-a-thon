@@ -1,0 +1,131 @@
+{
+  "name": "trueforge-vscode",
+  "displayName": "TrueForge Coding Agent",
+  "description": "VS Code coding agent extension powered by TrueFoundry TrueForge local harness",
+  "version": "0.1.0",
+  "publisher": "truefoundry-forgeathon",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/truefoundry/trueforge"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "AI",
+    "Programming Languages",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "trueforge.streamHello",
+        "title": "TrueForge: Stream Hello Prompt",
+        "category": "TrueForge"
+      },
+      {
+        "command": "trueforge.openAgentPanel",
+        "title": "TrueForge: Open Agent Panel",
+        "category": "TrueForge"
+      },
+      {
+        "command": "trueforge.inlineEdit",
+        "title": "TrueForge: Inline Edit Selection",
+        "category": "TrueForge"
+      },
+      {
+        "command": "trueforge.acceptHunk",
+        "title": "TrueForge: Accept Diff Hunk",
+        "category": "TrueForge"
+      },
+      {
+        "command": "trueforge.rejectHunk",
+        "title": "TrueForge: Reject Diff Hunk",
+        "category": "TrueForge"
+      },
+      {
+        "command": "trueforge.acceptAllHunks",
+        "title": "TrueForge: Accept All Hunks",
+        "category": "TrueForge"
+      },
+      {
+        "command": "trueforge.rejectAllHunks",
+        "title": "TrueForge: Reject All Hunks",
+        "category": "TrueForge"
+      },
+      {
+        "command": "trueforge.undoLastTurn",
+        "title": "TrueForge: Undo Last Applied Turn",
+        "category": "TrueForge"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "trueforge.inlineEdit",
+        "key": "ctrl+i",
+        "mac": "cmd+i",
+        "when": "editorTextFocus"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "trueforge-explorer",
+          "title": "TrueForge Agent",
+          "icon": "$(sparkle)"
+        }
+      ]
+    },
+    "views": {
+      "trueforge-explorer": [
+        {
+          "type": "webview",
+          "id": "trueforge.agentPanel",
+          "name": "TrueForge Chat & Tools"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "TrueForge Agent",
+      "properties": {
+        "trueforge.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:8790",
+          "description": "Base URL of the local TrueForge agent harness"
+        },
+        "trueforge.agentName": {
+          "type": "string",
+          "default": "coding-agent",
+          "description": "Name of the TrueForge agent"
+        },
+        "trueforge.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Path to Python executable for the MCP backend sidecar"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "test": "node tests/run_tests.js"
+  },
+  "dependencies": {
+    "diff": "^7.0.0",
+    "eventsource-parser": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.0",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.90.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  }
+}

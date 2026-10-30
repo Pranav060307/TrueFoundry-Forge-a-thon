@@ -1,0 +1,38 @@
+{
+  "server": {
+    "port": 8790,
+    "baseUrl": "http://localhost:8790",
+    "networkPolicyEnabled": false
+  },
+  "models": {
+    "primary": {
+      "provider": "anthropic",
+      "modelId": "anthropic/claude-sonnet-4-6",
+      "apiKey": "YOUR_ANTHROPIC_API_KEY",
+      "params": {
+        "max_tokens": 4096,
+        "temperature": 0.2
+      }
+    },
+    "fallback": {
+      "provider": "openai",
+      "modelId": "openai/gpt-4o",
+      "apiKey": "YOUR_OPENAI_API_KEY",
+      "params": {
+        "max_tokens": 4096,
+        "temperature": 0.2
+      }
+    }
+  },
+  "mcpServer": {
+    "name": "vscode-tools",
+    "port": 4545,
+    "url": "http://127.0.0.1:4545/mcp"
+  },
+  "agent": {
+    "name": "trueforge-coding-agent",
+    "description": "VS Code coding agent with in-memory diff review, size-budgeted context, and auto fallback",
+    "iterationLimit": 50,
+    "contextCompactionTokens": 50000
+  }
+}

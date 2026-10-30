@@ -14,12 +14,13 @@
   - Deliverable: `TRUEFORGE_API.md`, `DECISIONS.md`, `NOTES_FOR_WRITEUP.md`.
   - Commit: `docs: notes on TrueForge API`
 
-- [ ] **M1: Extension & Client Scaffold**
-  - Scaffold TypeScript extension with `esbuild`.
-  - TrueForge client module (`trueforgeClient.ts` via SDK / HTTP API).
-  - Configuration loader (`trueforge.config.json` from `trueforge.config.example.json`).
-  - Output channel streaming test command.
-  - Verification: Hello prompt streams tokens into VS Code output channel.
+- [x] **M1: Extension & Client Scaffold**
+  - Scaffolded TypeScript extension with `esbuild`.
+  - Built TrueForge client module (`TrueForgeClient.ts`) with SSE reader, delta merger, and session/turn lifecycle.
+  - Implemented configuration loader (`configManager.ts`) with fallback to `trueforge.config.example.json`.
+  - Registered `trueforge.streamHello` command and output channel streaming handler.
+  - Added unit test suite for TrueForgeClient delta and event handling (`npm test` passes).
+  - Verification: Clean bundle generated (`dist/extension.js`, 10.5 KB) and tests pass.
 
 - [ ] **M2: MCP Tool Server (Backend in Python)**
   - Python sidecar MCP server exposing:
