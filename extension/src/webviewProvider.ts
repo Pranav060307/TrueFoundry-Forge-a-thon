@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { TrueForgeClient, TrueForgeEvent } from './trueforgeClient';
 import { SidecarManager } from './sidecarManager';
 import { ConfigLoader } from './configLoader';
+import { HunkRegistry } from './hunkRegistry';
 
 export class AgentWebviewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'trueforge.agentPanel';
@@ -12,14 +13,21 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
   private extensionUri: vscode.Uri;
   private trueforgeClient: TrueForgeClient;
   private sidecarManager: SidecarManager;
+  private hunkRegistry: HunkRegistry;
   private currentSessionId?: string;
   private abortController?: AbortController;
   private statusInterval?: NodeJS.Timeout;
 
-  constructor(extensionUri: vscode.Uri, trueforgeClient: TrueForgeClient, sidecarManager: SidecarManager) {
+  constructor(
+    extensionUri: vscode.Uri,
+    trueforgeClient: TrueForgeClient,
+    sidecarManager: SidecarManager,
+    hunkRegistry: HunkRegistry
+  ) {
     this.extensionUri = extensionUri;
     this.trueforgeClient = trueforgeClient;
     this.sidecarManager = sidecarManager;
+    this.hunkRegistry = hunkRegistry;
   }
 
   public resolveWebviewView(
@@ -53,16 +61,25 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
           await this.handleCancel();
           break;
 
-        case 'reviewDiff':
-          vscode.commands.executeCommand('trueforge.acceptHunk');
+        case 'reviewDiff': {
+          const pendingFiles = this.hunkRegistry
+            .getAllFileDiffs()
+            .filter((f) => f.hunks.some((h) => h.state === 'pending'));
+
+          if (pendingFiles.length > 0) {
+            await this.hunkRegistry.openDiff(pendingFiles[0].filePath);
+          } else {
+            vscode.window.showInformationMessage('TrueForge: No pending diffs to review.');
+          }
           break;
+        }
       }
     });
 
     // Start background status poll
     this.statusInterval = setInterval(() => {
       this.broadcastStatus();
-    }, 4000);
+    }, 3000);
 
     webviewView.onDidDispose(() => {
       if (this.statusInterval) clearInterval(this.statusInterval);
@@ -73,13 +90,31 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
     if (!this.view) return;
     const tfOk = await this.trueforgeClient.isHealthy();
     const scOk = await this.sidecarManager.isHealthy();
-    const pendingEdits = await this.sidecarManager.getPendingEdits();
+
+    // Sync any pending edits from the Python sidecar into HunkRegistry
+    try {
+      const pendingEdits = await this.sidecarManager.getPendingEdits();
+      for (const pe of pendingEdits) {
+        if (!this.hunkRegistry.getFileDiff(pe.path)) {
+          this.hunkRegistry.stageProposal(
+            pe.path,
+            pe.original_content,
+            pe.proposed_content,
+            pe.reason
+          );
+        }
+      }
+    } catch {
+      // Sidecar offline or starting
+    }
+
+    const pendingCount = this.hunkRegistry.getPendingHunksCount();
 
     this.view.webview.postMessage({
       type: 'statusUpdate',
       trueforge: tfOk ? 'connected' : 'offline',
       sidecar: scOk ? 'healthy' : 'offline',
-      pendingEdits: pendingEdits.length,
+      pendingEdits: pendingCount,
     });
   }
 
@@ -88,19 +123,30 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
     const config = ConfigLoader.getConfig();
 
     this.abortController = new AbortController();
+    const turnId = `turn-${Date.now()}`;
+    this.hunkRegistry.setTurnId(turnId);
 
     try {
       if (!this.currentSessionId) {
         const session = await this.trueforgeClient.createSession({
           spec: {
             model: { name: config.models.primary.modelId },
-            instructions: 'You are TrueForge Coding Agent. Help the user concisely.',
+            instructions:
+              'You are TrueForge Coding Agent, an expert software engineer embedded in VS Code. Use the available MCP tools to read, search, and propose changes.',
+            mcp_servers: [
+              {
+                name: config.mcpServer.name || 'vscode-tools',
+                enable_tools: ['@all'],
+                require_approval_for_tools: ['@destructive', 'run_command'],
+                preload: false,
+              },
+            ],
           },
         });
         this.currentSessionId = session.id;
       }
 
-      this.view.webview.postMessage({ type: 'turnCreated', turnId: Date.now().toString() });
+      this.view.webview.postMessage({ type: 'turnCreated', turnId });
 
       await this.trueforgeClient.createTurnStream(
         this.currentSessionId,
@@ -112,11 +158,24 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
             this.view.webview.postMessage({ type: 'tokenDelta', content: event.content });
           } else if (event.type === 'model.message' && event.tool_calls) {
             for (const tc of event.tool_calls) {
+              const toolName = tc.function?.name || tc.tool_info?.name || 'tool';
               this.view.webview.postMessage({
                 type: 'toolCall',
-                toolName: tc.function?.name || tc.tool_info?.name || 'tool',
+                toolName,
                 args: tc.function?.arguments,
               });
+
+              // If propose_write was called, sync immediately and notify
+              if (toolName === 'propose_write') {
+                this.broadcastStatus().then(() => {
+                  const pendingFiles = this.hunkRegistry
+                    .getAllFileDiffs()
+                    .filter((f) => f.hunks.some((h) => h.state === 'pending'));
+                  if (pendingFiles.length > 0) {
+                    this.hunkRegistry.openDiff(pendingFiles[0].filePath);
+                  }
+                });
+              }
             }
           }
         },
@@ -124,6 +183,7 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
       );
 
       this.view.webview.postMessage({ type: 'turnDone' });
+      await this.broadcastStatus();
     } catch (err: any) {
       this.view.webview.postMessage({
         type: 'error',
@@ -140,6 +200,7 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
       await this.trueforgeClient.cancelSession(this.currentSessionId);
     }
     this.view?.webview.postMessage({ type: 'turnDone' });
+    vscode.window.showInformationMessage('TrueForge: Agent turn cancelled. No changes were written to disk.');
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {
@@ -172,4 +233,3 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
     return html;
   }
 }
-

@@ -1,7 +1,7 @@
 # Implementation Progress: TrueForge VS Code Coding Agent
 
 **Status:** Active  
-**Current Milestone:** Milestone 0 (Complete) $\rightarrow$ Milestone 1 (Starting)
+**Current Milestone:** Milestone 3 (Complete) $\rightarrow$ Milestone 4 (Inline Edit / Task A)
 
 ---
 
@@ -15,7 +15,7 @@
   - Commit: `docs: notes on TrueForge API`
 
 - [x] **M1: Scaffold + Live Handshake**
-  - Project reorganized into `/extension` (TS), `/webview` (React + Vite + TS), `/backend` (Python + FastAPI), `/agent` (TrueForge manifest & config), `/docs`.
+  - Project organized into `/extension` (TS), `/webview` (React + Vite + TS), `/backend` (Python + FastAPI), `/agent` (TrueForge manifest & config), `/docs`.
   - Extension host features TrueForgeClient module (session/turn streaming and cancel), SidecarManager with lifecycle management & health checks, ConfigLoader.
   - Webview features React + Vite app with CSP + asWebviewUri, postMessage protocol, TrueForge/sidecar health badges, token streaming.
   - Unified dev and build commands in root package.json (`npm run build`, `npm test`).
@@ -33,12 +33,23 @@
   - Secret scan completed across repo and git history (0 secrets).
   - Commit: `test: end-to-end agent to MCP verification`
 
-- [ ] **M3: Diff Review & Undo Engine**
-  - In-memory hunk registry.
-  - Virtual document diff provider (`TextDocumentContentProvider`).
-  - CodeLens and in-editor decorations for Accept/Reject per hunk.
-  - WorkspaceEdit application with native undo (`Ctrl+Z`).
-  - Verification: Fake edit reviewed, accepted hunk-by-hunk, and undone.
+- [x] **M3: Diff Review & Undo Engine**
+  - Implemented `extension/src/diffEngine.ts`: Myers diff calculation with 0-line context isolating each contiguous edit into a distinct reviewable hunk.
+  - Line ending normalization preserving CRLF and LF across Windows and Linux environments without introducing phantom carriage returns (`\r\r\n`).
+  - Implemented `extension/src/diffContentProvider.ts`: `vscode.TextDocumentContentProvider` for `trueforge-diff://` virtual document scheme.
+  - Implemented `extension/src/hunkRegistry.ts`: Staged in-memory edit registry with live event refresh on hunk accept/reject, synchronized with Python sidecar.
+  - Implemented `extension/src/codeLensProvider.ts`: In-editor CodeLens buttons for `✓ Accept Hunk`, `✗ Reject Hunk`, `✓ Accept All Hunks`, `✗ Reject All Hunks`.
+  - Implemented `extension/src/undoManager.ts`: Direct `vscode.WorkspaceEdit` application ensuring full VS Code native undo (`Ctrl+Z`), plus explicit `trueforge.undoLastTurn` rollback command.
+  - Comprehensive unit test suite in `tests/test_diff_engine.mjs` verifying:
+    1. Single hunk in middle of file.
+    2. Hunk at start of file (line 1).
+    3. Hunk at end of file.
+    4. Multiple hunks in a single file with selective accept/reject.
+    5. CRLF line endings preservation.
+    6. Brand new file creation.
+    7. Pure line deletion.
+    8. Milestone 3 "Done When": 2 files, 5 hunks, accepting 3 and rejecting 2, with exact disk verification and clean undo.
+  - Commit: `feat: native diff review engine with per-hunk CodeLens and undo`
 
 - [ ] **M4: Inline Edit (Task A)**
   - Selection keybinding (`Ctrl+I` / `Cmd+I`) and instruction input box.

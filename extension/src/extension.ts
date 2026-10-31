@@ -1,15 +1,24 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { TrueForgeClient, TrueForgeEvent } from './trueforgeClient';
 import { SidecarManager } from './sidecarManager';
 import { TrueForgeManager } from './trueforgeManager';
 import { ConfigLoader } from './configLoader';
 import { AgentWebviewProvider } from './webviewProvider';
+import { DiffContentProvider } from './diffContentProvider';
+import { DiffCodeLensProvider } from './codeLensProvider';
+import { HunkRegistry } from './hunkRegistry';
+import { UndoManager } from './undoManager';
 
 let outputChannel: vscode.OutputChannel;
 let sidecarManager: SidecarManager;
 let trueforgeManager: TrueForgeManager;
 let trueforgeClient: TrueForgeClient;
 let webviewProvider: AgentWebviewProvider;
+let undoManager: UndoManager;
+let hunkRegistry: HunkRegistry;
+let diffContentProvider: DiffContentProvider;
+let diffCodeLensProvider: DiffCodeLensProvider;
 
 export async function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel('TrueForge Agent');
@@ -23,6 +32,29 @@ export async function activate(context: vscode.ExtensionContext) {
   outputChannel.appendLine(`[TrueForge Extension] Workspace Root: ${workspaceRoot}`);
 
   trueforgeClient = new TrueForgeClient(config.server.baseUrl);
+
+  // Initialize Milestone 3 Diff Review & Undo Engine
+  undoManager = new UndoManager();
+  hunkRegistry = new HunkRegistry(workspaceRoot, undoManager);
+  diffContentProvider = new DiffContentProvider(hunkRegistry);
+  hunkRegistry.setContentProvider(diffContentProvider);
+  diffCodeLensProvider = new DiffCodeLensProvider(hunkRegistry);
+
+  // Register Virtual Diff Document Provider (trueforge-diff://...)
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider(
+      DiffContentProvider.scheme,
+      diffContentProvider
+    )
+  );
+
+  // Register Diff CodeLens Provider
+  context.subscriptions.push(
+    vscode.languages.registerCodeLensProvider(
+      [{ scheme: 'file' }, { scheme: DiffContentProvider.scheme }],
+      diffCodeLensProvider
+    )
+  );
 
   // Start TrueForge runtime if not already running
   trueforgeManager = new TrueForgeManager(outputChannel, config.server.port || 8790);
@@ -60,9 +92,135 @@ export async function activate(context: vscode.ExtensionContext) {
   });
 
   // Register Webview Provider
-  webviewProvider = new AgentWebviewProvider(context.extensionUri, trueforgeClient, sidecarManager);
+  webviewProvider = new AgentWebviewProvider(context.extensionUri, trueforgeClient, sidecarManager, hunkRegistry);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(AgentWebviewProvider.viewType, webviewProvider)
+  );
+
+  // Helper to resolve target file and hunk
+  function getActiveTarget(argFilePath?: string): string | undefined {
+    if (argFilePath) return argFilePath;
+    const activeEditor = vscode.window.activeTextEditor;
+    if (!activeEditor) return undefined;
+    const docUri = activeEditor.document.uri;
+    if (docUri.scheme === DiffContentProvider.scheme) {
+      let p = docUri.path.replace(/^\/+/, '');
+      if (p.startsWith('proposed/')) p = p.slice('proposed/'.length);
+      return decodeURIComponent(p);
+    }
+    return hunkRegistry.normalizePath(docUri.fsPath);
+  }
+
+  // Command: Accept Single Hunk
+  const acceptHunkCommand = vscode.commands.registerCommand(
+    'trueforge.acceptHunk',
+    async (filePath?: string, hunkId?: string) => {
+      const targetPath = getActiveTarget(filePath);
+      if (!targetPath) {
+        vscode.window.showWarningMessage('TrueForge: No file selected for diff review.');
+        return;
+      }
+      const fd = hunkRegistry.getFileDiff(targetPath);
+      if (!fd || fd.hunks.length === 0) {
+        vscode.window.showInformationMessage(`TrueForge: No diff hunks for '${targetPath}'.`);
+        return;
+      }
+      const targetHunkId = hunkId || fd.hunks.find((h) => h.state === 'pending')?.id;
+      if (!targetHunkId) {
+        vscode.window.showInformationMessage(`TrueForge: All hunks in '${targetPath}' are already reviewed.`);
+        return;
+      }
+
+      await hunkRegistry.acceptHunk(targetPath, targetHunkId);
+      diffCodeLensProvider.refresh();
+      webviewProvider.broadcastStatus();
+    }
+  );
+
+  // Command: Reject Single Hunk
+  const rejectHunkCommand = vscode.commands.registerCommand(
+    'trueforge.rejectHunk',
+    async (filePath?: string, hunkId?: string) => {
+      const targetPath = getActiveTarget(filePath);
+      if (!targetPath) {
+        vscode.window.showWarningMessage('TrueForge: No file selected for diff review.');
+        return;
+      }
+      const fd = hunkRegistry.getFileDiff(targetPath);
+      if (!fd || fd.hunks.length === 0) return;
+
+      const targetHunkId = hunkId || fd.hunks.find((h) => h.state === 'pending')?.id;
+      if (!targetHunkId) return;
+
+      await hunkRegistry.rejectHunk(targetPath, targetHunkId);
+      diffCodeLensProvider.refresh();
+      webviewProvider.broadcastStatus();
+    }
+  );
+
+  // Command: Accept All Hunks
+  const acceptAllHunksCommand = vscode.commands.registerCommand(
+    'trueforge.acceptAllHunks',
+    async (filePath?: string) => {
+      const targetPath = getActiveTarget(filePath);
+      if (!targetPath) return;
+
+      await hunkRegistry.acceptAll(targetPath);
+      diffCodeLensProvider.refresh();
+      webviewProvider.broadcastStatus();
+    }
+  );
+
+  // Command: Reject All Hunks
+  const rejectAllHunksCommand = vscode.commands.registerCommand(
+    'trueforge.rejectAllHunks',
+    async (filePath?: string) => {
+      const targetPath = getActiveTarget(filePath);
+      if (!targetPath) return;
+
+      await hunkRegistry.rejectAll(targetPath);
+      diffCodeLensProvider.refresh();
+      webviewProvider.broadcastStatus();
+    }
+  );
+
+  // Command: Undo Last Applied Turn
+  const undoLastTurnCommand = vscode.commands.registerCommand(
+    'trueforge.undoLastTurn',
+    async () => {
+      await undoManager.undoLastTurn();
+      diffCodeLensProvider.refresh();
+      webviewProvider.broadcastStatus();
+    }
+  );
+
+  // Command: Open Diff Editor
+  const openDiffCommand = vscode.commands.registerCommand(
+    'trueforge.openDiff',
+    async (filePath: string) => {
+      await hunkRegistry.openDiff(filePath);
+    }
+  );
+
+  // Command: Test Fake Diff (Milestone 3 Done When verification)
+  const testFakeDiffCommand = vscode.commands.registerCommand(
+    'trueforge.testFakeDiff',
+    async () => {
+      const file1 = 'src/sample1.txt';
+      const file1Orig = 'line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\n';
+      const file1Prop = 'line1\nHUNK1_A\nline3\nline4\nHUNK2_B\nline6\nline7\nHUNK3_C\nline9\nline10\n';
+
+      const file2 = 'src/sample2.txt';
+      const file2Orig = 'alpha\nbeta\ngamma\ndelta\n';
+      const file2Prop = 'alpha\nBETA_EDITED\ngamma\nDELTA_EDITED\n';
+
+      hunkRegistry.stageProposal(file1, file1Orig, file1Prop, 'Fake Edit File 1 (3 hunks)');
+      hunkRegistry.stageProposal(file2, file2Orig, file2Prop, 'Fake Edit File 2 (2 hunks)');
+
+      await hunkRegistry.openDiff(file1);
+      vscode.window.showInformationMessage('TrueForge: Loaded 2 files with 5 hunks for diff review.');
+      diffCodeLensProvider.refresh();
+    }
   );
 
   // Command: Stream Hello Test (Milestone 1 Verification)
@@ -128,28 +286,103 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.executeCommand('workbench.view.extension.trueforge-explorer');
   });
 
-  const inlineEditCommand = vscode.commands.registerCommand('trueforge.inlineEdit', () => {
-    vscode.window.showInformationMessage('TrueForge: Inline Edit Selection (M4).');
-  });
+  // Milestone 4 Inline Edit Command (Selection + Instruction -> TrueForge)
+  const inlineEditCommand = vscode.commands.registerCommand('trueforge.inlineEdit', async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      vscode.window.showWarningMessage('TrueForge: Open a file in the editor to use Inline Edit.');
+      return;
+    }
 
-  const acceptHunkCommand = vscode.commands.registerCommand('trueforge.acceptHunk', () => {
-    vscode.window.showInformationMessage('TrueForge: Accept Diff Hunk (M3).');
-  });
+    const document = editor.document;
+    const selection = editor.selection;
+    const selectedText = document.getText(selection.isEmpty ? undefined : selection);
+    const relPath = hunkRegistry.normalizePath(document.uri.fsPath);
 
-  const rejectHunkCommand = vscode.commands.registerCommand('trueforge.rejectHunk', () => {
-    vscode.window.showInformationMessage('TrueForge: Reject Diff Hunk (M3).');
-  });
+    const instruction = await vscode.window.showInputBox({
+      title: `TrueForge Inline Edit: ${path.basename(relPath)}`,
+      prompt: 'Enter instructions for modifying this code',
+      placeHolder: 'e.g. Treat "off" and "n" as false as well, case-insensitively, and update docstring',
+      ignoreFocusOut: true,
+    });
 
-  const acceptAllHunksCommand = vscode.commands.registerCommand('trueforge.acceptAllHunks', () => {
-    vscode.window.showInformationMessage('TrueForge: Accept All Hunks (M3).');
-  });
+    if (!instruction) return;
 
-  const rejectAllHunksCommand = vscode.commands.registerCommand('trueforge.rejectAllHunks', () => {
-    vscode.window.showInformationMessage('TrueForge: Reject All Hunks (M3).');
-  });
+    outputChannel.show(true);
+    outputChannel.appendLine(`\n--- [TrueForge Inline Edit] ---`);
+    outputChannel.appendLine(`Target File: ${relPath}`);
+    outputChannel.appendLine(`Instruction: ${instruction}`);
 
-  const undoLastTurnCommand = vscode.commands.registerCommand('trueforge.undoLastTurn', () => {
-    vscode.window.showInformationMessage('TrueForge: Undo Last Applied Turn (M3).');
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `TrueForge: Generating inline edit for ${path.basename(relPath)}...`,
+        cancellable: true,
+      },
+      async (_progress, token) => {
+        const abortController = new AbortController();
+        token.onCancellationRequested(() => {
+          abortController.abort();
+          outputChannel.appendLine('[TrueForge] Inline edit cancelled by user.');
+        });
+
+        try {
+          const fileFullContent = document.getText();
+          const prompt = `You are performing an inline edit on the file '${relPath}'.
+Instruction: ${instruction}
+
+Context of the file:
+\`\`\`
+${fileFullContent}
+\`\`\`
+
+${selectedText ? `Selected target code:\n\`\`\`\n${selectedText}\n\`\`\`\n` : ''}
+Use the propose_write tool to propose the updated full contents of '${relPath}'. DO NOT attempt to write directly. Preserve existing code style and formatting.`;
+
+          const session = await trueforgeClient.createSession({
+            spec: {
+              model: { name: config.models.primary.modelId },
+              instructions:
+                'You are TrueForge Coding Agent. Carry out the user edit surgically and call propose_write to submit your proposed code.',
+              mcp_servers: [
+                {
+                  name: config.mcpServer.name || 'vscode-tools',
+                  enable_tools: ['@all'],
+                  require_approval_for_tools: ['@destructive', 'run_command'],
+                  preload: false,
+                },
+              ],
+            },
+          });
+
+          await trueforgeClient.createTurnStream(
+            session.id,
+            [{ type: 'user.message', content: prompt }],
+            (event: TrueForgeEvent) => {
+              if (event.type === 'model.message.delta' && event.content) {
+                outputChannel.append(event.content);
+              }
+            },
+            abortController.signal
+          );
+
+          // Give a short grace period for sidecar propose_write to buffer
+          setTimeout(async () => {
+            const pendingEdits = await sidecarManager.getPendingEdits();
+            for (const pe of pendingEdits) {
+              hunkRegistry.stageProposal(pe.path, pe.original_content, pe.proposed_content, pe.reason);
+            }
+            await hunkRegistry.openDiff(relPath);
+            diffCodeLensProvider.refresh();
+          }, 500);
+
+        } catch (error: any) {
+          const msg = error instanceof Error ? error.message : String(error);
+          outputChannel.appendLine(`\n[Error] Inline edit failed: ${msg}`);
+          vscode.window.showErrorMessage(`TrueForge Inline Edit Error: ${msg}`);
+        }
+      }
+    );
   });
 
   context.subscriptions.push(
@@ -160,10 +393,12 @@ export async function activate(context: vscode.ExtensionContext) {
     rejectHunkCommand,
     acceptAllHunksCommand,
     rejectAllHunksCommand,
-    undoLastTurnCommand
+    undoLastTurnCommand,
+    openDiffCommand,
+    testFakeDiffCommand
   );
 
-  outputChannel.appendLine('[TrueForge Extension] Initialization complete.');
+  outputChannel.appendLine('[TrueForge Extension] Initialization complete with M3 Diff Review Engine & M4 Inline Edit.');
 }
 
 export function deactivate() {

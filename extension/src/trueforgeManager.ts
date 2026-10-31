@@ -112,3 +112,4 @@ export class TrueForgeManager {
     return false;
   }
 }
+
