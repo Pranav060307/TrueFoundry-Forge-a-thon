@@ -35,3 +35,4 @@
 - Zero silent writes (all edits staged in-memory).
 - Automatic model fallback without user intervention.
 - Immediate cancellation leaving git status clean.
+

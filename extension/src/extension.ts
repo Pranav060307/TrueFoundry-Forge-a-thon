@@ -1,18 +1,45 @@
 import * as vscode from 'vscode';
-import { TrueForgeClient, TrueForgeEvent } from './agent/TrueForgeClient';
-import { ConfigManager } from './config/configManager';
+import { TrueForgeClient, TrueForgeEvent } from './trueforgeClient';
+import { SidecarManager } from './sidecarManager';
+import { ConfigLoader } from './configLoader';
+import { AgentWebviewProvider } from './webviewProvider';
 
 let outputChannel: vscode.OutputChannel;
-let client: TrueForgeClient;
+let sidecarManager: SidecarManager;
+let trueforgeClient: TrueForgeClient;
+let webviewProvider: AgentWebviewProvider;
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel('TrueForge Agent');
   context.subscriptions.push(outputChannel);
 
-  const config = ConfigManager.loadConfig(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
-  client = new TrueForgeClient(config.server.baseUrl);
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || process.cwd();
+  const config = ConfigLoader.loadConfig(workspaceRoot);
 
-  outputChannel.appendLine(`[TrueForge Extension] Activated. Harness Base URL: ${client.getBaseUrl()}`);
+  outputChannel.appendLine(`[TrueForge Extension] Activating...`);
+  outputChannel.appendLine(`[TrueForge Extension] Harness URL: ${config.server.baseUrl}`);
+  outputChannel.appendLine(`[TrueForge Extension] Workspace Root: ${workspaceRoot}`);
+
+  trueforgeClient = new TrueForgeClient(config.server.baseUrl);
+
+  // Start Python Sidecar
+  sidecarManager = new SidecarManager(outputChannel, workspaceRoot, config.mcpServer.port || 4545);
+  context.subscriptions.push({ dispose: () => sidecarManager.stop() });
+
+  // Launch sidecar in background
+  sidecarManager.start().then((healthy) => {
+    if (healthy) {
+      vscode.window.showInformationMessage('TrueForge: Python MCP sidecar is online.');
+    } else {
+      vscode.window.showWarningMessage('TrueForge: Python sidecar starting or offline.');
+    }
+  });
+
+  // Register Webview Provider
+  webviewProvider = new AgentWebviewProvider(context.extensionUri, trueforgeClient, sidecarManager);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(AgentWebviewProvider.viewType, webviewProvider)
+  );
 
   // Command: Stream Hello Test (Milestone 1 Verification)
   const streamHelloCommand = vscode.commands.registerCommand('trueforge.streamHello', async () => {
@@ -25,7 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
         title: 'TrueForge: Connecting to local agent...',
         cancellable: true,
       },
-      async (progress, token) => {
+      async (_progress, token) => {
         const abortController = new AbortController();
         token.onCancellationRequested(() => {
           abortController.abort();
@@ -33,8 +60,8 @@ export function activate(context: vscode.ExtensionContext) {
         });
 
         try {
-          outputChannel.appendLine(`[1/3] Creating session on ${client.getBaseUrl()}...`);
-          const session = await client.createSession({
+          outputChannel.appendLine(`[1/3] Creating session on ${trueforgeClient.getBaseUrl()}...`);
+          const session = await trueforgeClient.createSession({
             spec: {
               model: { name: config.models.primary.modelId },
               instructions: 'You are TrueForge Coding Agent. Respond briefly and concisely.',
@@ -43,8 +70,7 @@ export function activate(context: vscode.ExtensionContext) {
 
           outputChannel.appendLine(`[2/3] Session established (id: ${session.id}). Starting streaming turn...`);
 
-          let tokenCount = 0;
-          const finalEvent = await client.createTurnStream(
+          const finalEvent = await trueforgeClient.createTurnStream(
             session.id,
             [
               {
@@ -54,7 +80,6 @@ export function activate(context: vscode.ExtensionContext) {
             ],
             (event: TrueForgeEvent) => {
               if (event.type === 'model.message.delta' && event.content) {
-                tokenCount++;
                 outputChannel.append(event.content);
               } else if (event.type === 'turn.created') {
                 outputChannel.appendLine(`[Turn Created: ${event.turn_id}]`);
@@ -65,7 +90,7 @@ export function activate(context: vscode.ExtensionContext) {
           );
 
           outputChannel.appendLine(`\n[3/3] Turn completed with status: ${finalEvent.state?.status ?? 'done'}`);
-          vscode.window.showInformationMessage(`TrueForge Agent connected successfully! Received stream.`);
+          vscode.window.showInformationMessage(`TrueForge Agent connected successfully!`);
         } catch (error: any) {
           const msg = error instanceof Error ? error.message : String(error);
           outputChannel.appendLine(`\n[Error] TrueForge call failed: ${msg}`);
@@ -75,35 +100,32 @@ export function activate(context: vscode.ExtensionContext) {
     );
   });
 
-  // Placeholder commands for subsequent milestones (M2-M7)
   const openAgentPanelCommand = vscode.commands.registerCommand('trueforge.openAgentPanel', () => {
-    outputChannel.appendLine('[TrueForge] Opening Agent Panel (M5)...');
-    vscode.window.showInformationMessage('TrueForge Agent Panel will be available in Milestone 5.');
+    vscode.commands.executeCommand('workbench.view.extension.trueforge-explorer');
   });
 
   const inlineEditCommand = vscode.commands.registerCommand('trueforge.inlineEdit', () => {
-    outputChannel.appendLine('[TrueForge] Triggering Inline Edit (M4)...');
-    vscode.window.showInformationMessage('TrueForge Inline Edit will be available in Milestone 4.');
+    vscode.window.showInformationMessage('TrueForge: Inline Edit Selection (M4).');
   });
 
   const acceptHunkCommand = vscode.commands.registerCommand('trueforge.acceptHunk', () => {
-    outputChannel.appendLine('[TrueForge] Accept Hunk (M3)...');
+    vscode.window.showInformationMessage('TrueForge: Accept Diff Hunk (M3).');
   });
 
   const rejectHunkCommand = vscode.commands.registerCommand('trueforge.rejectHunk', () => {
-    outputChannel.appendLine('[TrueForge] Reject Hunk (M3)...');
+    vscode.window.showInformationMessage('TrueForge: Reject Diff Hunk (M3).');
   });
 
   const acceptAllHunksCommand = vscode.commands.registerCommand('trueforge.acceptAllHunks', () => {
-    outputChannel.appendLine('[TrueForge] Accept All Hunks (M3)...');
+    vscode.window.showInformationMessage('TrueForge: Accept All Hunks (M3).');
   });
 
   const rejectAllHunksCommand = vscode.commands.registerCommand('trueforge.rejectAllHunks', () => {
-    outputChannel.appendLine('[TrueForge] Reject All Hunks (M3)...');
+    vscode.window.showInformationMessage('TrueForge: Reject All Hunks (M3).');
   });
 
   const undoLastTurnCommand = vscode.commands.registerCommand('trueforge.undoLastTurn', () => {
-    outputChannel.appendLine('[TrueForge] Undo Last Turn (M3)...');
+    vscode.window.showInformationMessage('TrueForge: Undo Last Applied Turn (M3).');
   });
 
   context.subscriptions.push(
@@ -116,10 +138,12 @@ export function activate(context: vscode.ExtensionContext) {
     rejectAllHunksCommand,
     undoLastTurnCommand
   );
+
+  outputChannel.appendLine('[TrueForge Extension] Initialization complete.');
 }
 
 export function deactivate() {
-  if (outputChannel) {
-    outputChannel.dispose();
+  if (sidecarManager) {
+    sidecarManager.stop();
   }
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { TrueForgeClient } from '../src/agent/TrueForgeClient';
+import { TrueForgeClient } from '../extension/src/trueforgeClient';
 
 console.log('Testing TrueForgeClient delta merger and event handling...');
 
@@ -43,7 +43,7 @@ const baseWithTool = {
   tool_calls: [
     {
       id: 'tc-01',
-      function: { name: 'workspace_read_file', arguments: '{"path":' },
+      function: { name: 'read_file', arguments: '{"path":' },
     },
   ],
 };
@@ -56,7 +56,7 @@ const toolDelta = {
   tool_calls: [
     {
       id: 'tc-01',
-      function: { name: 'workspace_read_file', arguments: ' "helpers.py"}' },
+      function: { name: 'read_file', arguments: ' "helpers.py"}' },
     },
   ],
 };

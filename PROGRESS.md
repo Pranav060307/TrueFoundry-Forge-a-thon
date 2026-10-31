@@ -14,23 +14,20 @@
   - Deliverable: `TRUEFORGE_API.md`, `DECISIONS.md`, `NOTES_FOR_WRITEUP.md`.
   - Commit: `docs: notes on TrueForge API`
 
-- [x] **M1: Extension & Client Scaffold**
-  - Scaffolded TypeScript extension with `esbuild`.
-  - Built TrueForge client module (`TrueForgeClient.ts`) with SSE reader, delta merger, and session/turn lifecycle.
-  - Implemented configuration loader (`configManager.ts`) with fallback to `trueforge.config.example.json`.
-  - Registered `trueforge.streamHello` command and output channel streaming handler.
-  - Added unit test suite for TrueForgeClient delta and event handling (`npm test` passes).
-  - Verification: Clean bundle generated (`dist/extension.js`, 10.5 KB) and tests pass.
+- [x] **M1: Scaffold + Live Handshake**
+  - Project reorganized into `/extension` (TS), `/webview` (React + Vite + TS), `/backend` (Python + FastAPI), `/agent` (TrueForge manifest & config), `/docs`.
+  - Extension host features TrueForgeClient module (session/turn streaming and cancel), SidecarManager with lifecycle management & health checks, ConfigLoader.
+  - Webview features React + Vite app with CSP + asWebviewUri, postMessage protocol, TrueForge/sidecar health badges, token streaming.
+  - Unified dev and build commands in root package.json (`npm run build`, `npm test`).
+  - All test suites passing (`npm test`, `python tests/test_backend.py`).
+  - Commit: `feat: scaffold extension, webview, sidecar with live streaming`
 
-- [ ] **M2: MCP Tool Server (Backend in Python)**
-  - Python sidecar MCP server exposing:
-    - `workspace_read_file`
-    - `workspace_search_text`
-    - `workspace_list_files`
-    - `workspace_write_file_proposal` (in-memory buffer, no disk write)
-    - `workspace_run_command` (terminal execution with approval)
-  - Register MCP server with TrueForge.
-  - Verification: Agent reads a test workspace file via MCP tool.
+- [x] **M2: MCP Tools in Python Sidecar**
+  - Python MCP server implemented in `backend/main.py` using official MCP 2.x `MCPServer`.
+  - Tools implemented: `read_file`, `list_dir`, `search_workspace`, `propose_write`, `run_command`.
+  - `propose_write` strictly buffers edits in memory; verified that disk is untouched.
+  - Unit tests verifying all 5 MCP tools and non-destructive in-memory edit staging passing.
+  - Commit: `feat: MCP tools in Python sidecar, propose_write buffers edits`
 
 - [ ] **M3: Diff Review & Undo Engine**
   - In-memory hunk registry.

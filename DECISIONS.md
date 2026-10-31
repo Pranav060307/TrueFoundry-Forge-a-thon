@@ -33,3 +33,4 @@
 - **Rationale:**
   - Prevents context window bloat and runaway latency.
   - Fulfills the requirement that the agent visibly explains why each file was selected.
+

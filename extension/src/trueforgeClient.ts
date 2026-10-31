@@ -49,8 +49,23 @@ export class TrueForgeClient {
   }
 
   /**
+   * Health check on TrueForge server.
+   */
+  public async isHealthy(): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.baseUrl}/api/v1/sessions`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(2000),
+      });
+      return res.status < 500;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Creates a new session on TrueForge.
-   * Can use either a saved agent name or an inline AgentSpec.
    */
   public async createSession(agent: { name?: string; spec?: any }): Promise<{ id: string; [key: string]: any }> {
     const payload = agent.name ? { agent: { name: agent.name } } : { agent: { spec: agent.spec } };
@@ -80,7 +95,6 @@ export class TrueForgeClient {
 
   /**
    * Starts a streaming turn in an existing session.
-   * Emits live events via onEvent callback.
    */
   public async createTurnStream(
     sessionId: string,
@@ -177,16 +191,10 @@ export class TrueForgeClient {
     }
   }
 
-  /**
-   * Checks if an event is an incremental delta.
-   */
   public isEventDelta(event: TrueForgeEvent): boolean {
     return event.type.endsWith('.delta');
   }
 
-  /**
-   * Merges a delta event into its base event.
-   */
   public mergeEventDelta(base: TrueForgeEvent, delta: TrueForgeEvent): void {
     if (delta.content) {
       base.content = (base.content || '') + delta.content;

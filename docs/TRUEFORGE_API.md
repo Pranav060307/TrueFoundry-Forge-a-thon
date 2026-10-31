@@ -1,4 +1,4 @@
-# TrueForge API & Architecture Notes
+# TrueForge API & Architecture Reference
 
 ## 1. Sessions & Turns
 - **Session creation:** `POST /api/v1/sessions`
@@ -43,7 +43,7 @@
 
 ## 4. Tool Approval Flow
 - In `AgentSpec.mcp_servers`, configure `require_approval_for_tools`:
-  `["@write", "@destructive", "propose_write_file", "run_terminal_command"]`.
+  `["@write", "@destructive", "propose_write", "run_command"]`.
 - TrueForge pauses when the agent calls a gated tool, emitting `tool.approval_required`.
 - The turn closes with `turn.done` (`state.status: "done"`, `output: null`).
 - The client reads tool arguments from the base `model.message` via `source_event_id`, renders diff/prompt, and upon user confirmation sends a new turn:
@@ -84,16 +84,3 @@
     }
   }
   ```
-
-## 6. Configuring Models & Fallbacks
-- Configured under `Settings -> Models` or via `packages/trueforge/catalog/model-catalog.yaml`.
-- Supports OpenAI, Anthropic, Gemini, or any `custom` OpenAI-compatible base URL.
-- TrueForge delegates multi-model routing to AI Gateway / provider endpoints.
-- In client/extension: if the primary configured endpoint returns 401/timeout/error on turn initialization, the client automatically re-points to the secondary model spec and retries the turn transparently without user intervention (Task C resilience).
-
-## 7. Context-Engineering Features
-1. **Deferred Tool Loading:** Set `mcp_servers[].preload: false`. Tool schemas are discovered on demand, keeping initial prompts small.
-2. **Context Compaction:** Enabled in `config.context_management.compaction`. Summarizes older dialogue when input tokens exceed threshold (default 80% of window or 50,000 tokens).
-3. **Large Tool Response Offloading:** `config.context_management.large_tool_response.enabled: true`. Oversized tool outputs are written to sandbox/disk with a brief summary in active context.
-4. **Dynamic Subagents:** `config.dynamic_sub_agents.enabled: true`. Main agent can delegate sub-tasks to parallel child agents, merging summarized outputs.
-5. **Code Mode & Skills:** Enabled when `config.sandbox.enabled: true`. Allows running code scripts and loading git-backed `SKILL.md` instruction packs.

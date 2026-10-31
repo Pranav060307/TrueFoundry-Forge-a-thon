@@ -35,28 +35,20 @@ export interface AppConfig {
   };
 }
 
-export class ConfigManager {
+export class ConfigLoader {
   private static cachedConfig: AppConfig | null = null;
 
   public static loadConfig(workspaceRoot?: string): AppConfig {
-    const defaultExamplePath = path.join(__dirname, '..', 'trueforge', 'trueforge.config.example.json');
-    let configPath = '';
+    const candidatePaths: string[] = [];
 
     if (workspaceRoot) {
-      const userConfig = path.join(workspaceRoot, 'trueforge.config.json');
-      const exampleConfig = path.join(workspaceRoot, 'trueforge', 'trueforge.config.example.json');
-      if (fs.existsSync(userConfig)) {
-        configPath = userConfig;
-      } else if (fs.existsSync(exampleConfig)) {
-        configPath = exampleConfig;
-      }
+      candidatePaths.push(path.join(workspaceRoot, 'agent', 'trueforge.config.json'));
+      candidatePaths.push(path.join(workspaceRoot, 'trueforge.config.json'));
+      candidatePaths.push(path.join(workspaceRoot, 'agent', 'trueforge.config.example.json'));
+      candidatePaths.push(path.join(workspaceRoot, 'trueforge', 'trueforge.config.example.json'));
     }
 
-    if (!configPath || !fs.existsSync(configPath)) {
-      if (fs.existsSync(defaultExamplePath)) {
-        configPath = defaultExamplePath;
-      }
-    }
+    let configPath = candidatePaths.find((p) => fs.existsSync(p));
 
     const vscodeBaseUrl = vscode.workspace.getConfiguration('trueforge').get<string>('serverUrl');
     const vscodeAgentName = vscode.workspace.getConfiguration('trueforge').get<string>('agentName');
@@ -99,16 +91,12 @@ export class ConfigManager {
           agent: { ...parsed.agent, ...(fileConfig.agent || {}) },
         };
       } catch (e) {
-        console.warn(`[ConfigManager] Failed to parse config file at ${configPath}:`, e);
+        console.warn(`[ConfigLoader] Failed to read ${configPath}:`, e);
       }
     }
 
-    if (vscodeBaseUrl) {
-      parsed.server.baseUrl = vscodeBaseUrl;
-    }
-    if (vscodeAgentName) {
-      parsed.agent.name = vscodeAgentName;
-    }
+    if (vscodeBaseUrl) parsed.server.baseUrl = vscodeBaseUrl;
+    if (vscodeAgentName) parsed.agent.name = vscodeAgentName;
 
     this.cachedConfig = parsed;
     return parsed;
@@ -116,8 +104,8 @@ export class ConfigManager {
 
   public static getConfig(): AppConfig {
     if (!this.cachedConfig) {
-      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-      return this.loadConfig(workspaceRoot);
+      const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      return this.loadConfig(root);
     }
     return this.cachedConfig;
   }
