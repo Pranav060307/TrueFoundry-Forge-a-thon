@@ -2,7 +2,7 @@ const esbuild = require('esbuild');
 const path = require('path');
 
 async function run() {
-  const testFiles = ['test_client.mjs', 'test_diff_engine.mjs'];
+  const testFiles = ['test_client.mjs', 'test_diff_engine.mjs', 'test_task_a.mjs'];
 
   for (const testFile of testFiles) {
     const outfile = path.join(__dirname, '..', 'dist', `bundle_${testFile.replace('.mjs', '.js')}`);

@@ -1,7 +1,7 @@
 # Implementation Progress: TrueForge VS Code Coding Agent
 
 **Status:** Active  
-**Current Milestone:** Milestone 3 (Complete) $\rightarrow$ Milestone 4 (Inline Edit / Task A)
+**Current Milestone:** Milestone 4 (Complete) $\rightarrow$ Milestone 5 & 6 (Agent Panel UI & Context Assembly / Task B)
 
 ---
 
@@ -40,22 +40,22 @@
   - Implemented `extension/src/hunkRegistry.ts`: Staged in-memory edit registry with live event refresh on hunk accept/reject, synchronized with Python sidecar.
   - Implemented `extension/src/codeLensProvider.ts`: In-editor CodeLens buttons for `✓ Accept Hunk`, `✗ Reject Hunk`, `✓ Accept All Hunks`, `✗ Reject All Hunks`.
   - Implemented `extension/src/undoManager.ts`: Direct `vscode.WorkspaceEdit` application ensuring full VS Code native undo (`Ctrl+Z`), plus explicit `trueforge.undoLastTurn` rollback command.
-  - Comprehensive unit test suite in `tests/test_diff_engine.mjs` verifying:
-    1. Single hunk in middle of file.
-    2. Hunk at start of file (line 1).
-    3. Hunk at end of file.
-    4. Multiple hunks in a single file with selective accept/reject.
-    5. CRLF line endings preservation.
-    6. Brand new file creation.
-    7. Pure line deletion.
-    8. Milestone 3 "Done When": 2 files, 5 hunks, accepting 3 and rejecting 2, with exact disk verification and clean undo.
+  - Comprehensive unit test suite in `tests/test_diff_engine.mjs` verifying 8 test cases.
   - Commit: `feat: native diff review engine with per-hunk CodeLens and undo`
 
-- [ ] **M4: Inline Edit (Task A)**
-  - Selection keybinding (`Ctrl+I` / `Cmd+I`) and instruction input box.
-  - Inline prompt sent to TrueForge with active selection context.
-  - Diff flows through M3 review engine.
-  - Verification: Task A on Flask `get_debug_flag` passes.
+- [x] **M4: Inline Edit (Task A)**
+  - Registered `trueforge.inlineEdit` command (`Ctrl+I` / `Cmd+I`) with active selection capture and instruction prompt box.
+  - Prompt dispatch to TrueForge session with MCP `vscode-tools` registration.
+  - Propose writes flow directly through in-memory staging into M3 hunk review and diff editor.
+  - Verified Task A on `pallets/flask` (commit `22d92470`):
+    - Baseline: `FLASK_DEBUG=off` returned `True`.
+    - Function `get_debug_flag` and docstring updated to treat `"0"`, `"false"`, `"no"`, `"off"`, and `"n"` as false case-insensitively.
+    - Verified: `FLASK_DEBUG=off`, `FLASK_DEBUG=OFF`, `FLASK_DEBUG=n`, `FLASK_DEBUG=N` all return `False`.
+    - Verified: `FLASK_DEBUG=1` returns `True`.
+    - Verified: `pytest tests/test_cli.py -q` passed 55 tests with 0 regressions.
+    - Verified: Rollback left `D:\flask` git status 100% clean.
+  - Test runner: `tests/test_task_a.mjs` automated in `npm test`.
+  - Commit: `feat: inline edit capability and verified Task A on Flask`
 
 - [ ] **M5: Agent Panel (Webview)**
   - Sidebar chat UI with live token streaming and tool-call timeline.
