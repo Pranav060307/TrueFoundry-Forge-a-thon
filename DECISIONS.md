@@ -34,3 +34,10 @@
   - Prevents context window bloat and runaway latency.
   - Fulfills the requirement that the agent visibly explains why each file was selected.
 
+## Decision 6: MCP 2.x Starlette/FastAPI Integration for Remote MCP
+- **Decision:** Use official MCP Python SDK (`mcp.server.mcpserver.MCPServer`) mounted inside a FastAPI application.
+- **Rationale:**
+  - Provides native SSE endpoints under `/mcp` directly compatible with TrueForge's `RemoteMCP` client.
+  - Allows co-locating extension IPC endpoints (`/health`, `/api/pending_edits`, `/api/workspace`) on the same local port (4545).
+
+

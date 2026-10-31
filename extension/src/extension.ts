@@ -26,10 +26,27 @@ export async function activate(context: vscode.ExtensionContext) {
   sidecarManager = new SidecarManager(outputChannel, workspaceRoot, config.mcpServer.port || 4545);
   context.subscriptions.push({ dispose: () => sidecarManager.stop() });
 
-  // Launch sidecar in background
-  sidecarManager.start().then((healthy) => {
+  // Launch sidecar in background and register MCP with TrueForge
+  sidecarManager.start().then(async (healthy) => {
     if (healthy) {
       vscode.window.showInformationMessage('TrueForge: Python MCP sidecar is online.');
+      try {
+        await fetch(`${config.server.baseUrl}/api/v1/settings/mcp-servers`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            manifest: {
+              type: 'remote',
+              name: config.mcpServer.name || 'vscode-tools',
+              url: config.mcpServer.url || 'http://127.0.0.1:4545/mcp',
+              description: 'VS Code editor tools for reading, searching, proposing writes, and running commands',
+            },
+          }),
+        });
+        outputChannel.appendLine(`[TrueForge Extension] Registered MCP server with TrueForge at ${config.server.baseUrl}`);
+      } catch (err) {
+        outputChannel.appendLine(`[TrueForge Extension] TrueForge MCP registration notice: ${err}`);
+      }
     } else {
       vscode.window.showWarningMessage('TrueForge: Python sidecar starting or offline.');
     }
