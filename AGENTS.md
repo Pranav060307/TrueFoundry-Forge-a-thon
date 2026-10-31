@@ -48,3 +48,4 @@ A VS Code extension coding agent where the agent execution loop runs entirely on
 ### Task C (Resilience & Auto Fallback)
 - Configure invalid API key or unreachable URL on primary model.
 - Repeat Task A: Editor remains responsive, automatic fallback transparently routes to healthy secondary model without user intervention, diff is accepted, and `git status` remains clean on failure.
+

@@ -25,9 +25,13 @@
 - [x] **M2: MCP Tools in Python Sidecar**
   - Python MCP server implemented in `backend/main.py` using official MCP 2.x `MCPServer`.
   - Tools implemented: `read_file`, `list_dir`, `search_workspace`, `propose_write`, `run_command`.
-  - `propose_write` strictly buffers edits in memory; verified that disk is untouched.
+  - `propose_write` strictly buffers edits in memory; verified that disk is untouched (`git -C D:\flask status` clean).
   - Unit tests verifying all 5 MCP tools and non-destructive in-memory edit staging passing.
-  - Commit: `feat: MCP tools in Python sidecar, propose_write buffers edits`
+  - Flask 3.1.3 target repo cloned at commit `22d92470` to `D:\flask`; virtualenv configured with `pytest<8.2`; `pytest tests/test_cli.py -q` passing (55 passed, 3 skipped).
+  - Task A baseline verified: `$env:FLASK_DEBUG='off'; python -c "..."` prints `True`.
+  - `TrueForgeManager` added to extension to auto-launch TrueForge with loopback SSRF bypass (`NETWORK_POLICY_ENABLED=false`).
+  - Secret scan completed across repo and git history (0 secrets).
+  - Commit: `test: end-to-end agent to MCP verification`
 
 - [ ] **M3: Diff Review & Undo Engine**
   - In-memory hunk registry.

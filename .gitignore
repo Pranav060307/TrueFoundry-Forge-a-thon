@@ -6,6 +6,8 @@ out/
 
 # Configurations & secrets
 trueforge.config.json
+agent/trueforge.config.json
+**/trueforge.config.json
 .env
 .env.*
 !.env.example

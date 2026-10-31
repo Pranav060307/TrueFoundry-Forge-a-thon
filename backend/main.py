@@ -242,3 +242,4 @@ if __name__ == "__main__":
     import uvicorn
     print(f"[Sidecar] Starting on http://127.0.0.1:{args.port} (Workspace: {workspace_root})")
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info")
+

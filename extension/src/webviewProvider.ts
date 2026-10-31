@@ -172,3 +172,4 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
     return html;
   }
 }
+

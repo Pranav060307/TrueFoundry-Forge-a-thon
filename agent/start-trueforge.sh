@@ -4,3 +4,4 @@ export NETWORK_POLICY_ENABLED="false"
 export PORT="8790"
 echo "Starting TrueForge local harness on port 8790 with NETWORK_POLICY_ENABLED=false..."
 npx @truefoundry/trueforge@latest --port 8790
+

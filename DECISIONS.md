@@ -23,18 +23,25 @@
   - Disk writes only happen when the user clicks "Accept Hunk" or "Accept All", applied via `vscode.workspace.applyEdit` so the operation enters VS Code's native undo stack (`Ctrl+Z`).
 
 ## Decision 4: TrueForge Network Policy Configuration
-- **Decision:** Launch TrueForge with `NETWORK_POLICY_ENABLED=false` or `OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1","localhost"]'`.
+- **Decision:** Launch TrueForge with `NETWORK_POLICY_ENABLED=false` and `OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1","localhost"]'`.
 - **Rationale:**
-  - TrueForge's internal SSRF guard (`assertSafeOutboundUrl`) blocks private loopback IPs by default.
-  - Disabling the outbound guard for local execution allows TrueForge to connect to the local Python MCP server without encountering connection refused errors.
+  - TrueForge's internal SSRF guard (`assertSafeOutboundUrl` in `packages/trueforge-core/src/core/util/ssrfGuard.ts`) blocks private loopback IPs by default.
+  - Setting `NETWORK_POLICY_ENABLED=false` or explicitly whitelisting loopback hosts via `OUTBOUND_URL_ALLOWED_HOSTS` allows TrueForge to connect to the local Python MCP server without encountering outbound connection blocks.
+  - The extension manages this automatically in `TrueForgeManager` on startup, removing the need for manual terminal configuration.
 
-## Decision 5: Two-Tier Context Assembly with Strict Token Budget
+## Decision 5: Client-Side Automatic Model Failover (Task C)
+- **Decision:** The extension implements client-side automated failover from primary to fallback model.
+- **Rationale:**
+  - Verification against TrueForge documentation (`docs/models.mdx`) and source code confirms that TrueForge does not currently have a native multi-model failover engine ("Planned: automatic model selection for different turns or subagents. Today each agent uses the model you configure.").
+  - When the primary model encounters a timeout, 401 Unauthorized, rate limit, or 5xx error during a turn, the extension client catches the failure and immediately re-dispatches the session turn to the secondary model spec transparently with zero user action.
+
+## Decision 6: Two-Tier Context Assembly with Strict Token Budget
 - **Decision:** Explicit `@file` and `@symbol` mentions are given top priority, followed by top-K ranked workspace snippets from AST outline and BM25 search, capped at a strict 4,000-token budget.
 - **Rationale:**
   - Prevents context window bloat and runaway latency.
   - Fulfills the requirement that the agent visibly explains why each file was selected.
 
-## Decision 6: MCP 2.x Starlette/FastAPI Integration for Remote MCP
+## Decision 7: MCP 2.x Starlette/FastAPI Integration for Remote MCP
 - **Decision:** Use official MCP Python SDK (`mcp.server.mcpserver.MCPServer`) mounted inside a FastAPI application.
 - **Rationale:**
   - Provides native SSE endpoints under `/mcp` directly compatible with TrueForge's `RemoteMCP` client.

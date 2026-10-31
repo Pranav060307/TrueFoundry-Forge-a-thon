@@ -1,11 +1,13 @@
 import * as vscode from 'vscode';
 import { TrueForgeClient, TrueForgeEvent } from './trueforgeClient';
 import { SidecarManager } from './sidecarManager';
+import { TrueForgeManager } from './trueforgeManager';
 import { ConfigLoader } from './configLoader';
 import { AgentWebviewProvider } from './webviewProvider';
 
 let outputChannel: vscode.OutputChannel;
 let sidecarManager: SidecarManager;
+let trueforgeManager: TrueForgeManager;
 let trueforgeClient: TrueForgeClient;
 let webviewProvider: AgentWebviewProvider;
 
@@ -21,6 +23,11 @@ export async function activate(context: vscode.ExtensionContext) {
   outputChannel.appendLine(`[TrueForge Extension] Workspace Root: ${workspaceRoot}`);
 
   trueforgeClient = new TrueForgeClient(config.server.baseUrl);
+
+  // Start TrueForge runtime if not already running
+  trueforgeManager = new TrueForgeManager(outputChannel, config.server.port || 8790);
+  context.subscriptions.push({ dispose: () => trueforgeManager.stop() });
+  trueforgeManager.start();
 
   // Start Python Sidecar
   sidecarManager = new SidecarManager(outputChannel, workspaceRoot, config.mcpServer.port || 4545);
@@ -160,6 +167,9 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 export function deactivate() {
+  if (trueforgeManager) {
+    trueforgeManager.stop();
+  }
   if (sidecarManager) {
     sidecarManager.stop();
   }
