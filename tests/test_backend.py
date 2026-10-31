@@ -2,7 +2,17 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath("."))
 from starlette.testclient import TestClient
-from backend.main import app, read_file, list_dir, search_workspace, propose_write, run_command, pending_edits
+from backend.main import (
+    app,
+    read_file,
+    list_dir,
+    search_workspace,
+    propose_write,
+    run_command,
+    assemble_context,
+    get_workspace_outline,
+    pending_edits,
+)
 
 def test_backend():
     print("Testing Python Backend Sidecar...")
@@ -57,7 +67,27 @@ def test_backend():
     assert "Python" in cmd_res
     print("  ✓ run_command executed successfully")
 
-    print("All Python backend sidecar tests passed successfully!")
+    # 8. Milestone 6: assemble_context tool with budget and explanation
+    ctx_res = assemble_context("TrueForge coding agent instructions", mentions=["AGENTS.md"], max_tokens=2000)
+    assert "Context Assembly Summary" in ctx_res
+    assert "AGENTS.md" in ctx_res
+    assert "Explicit @file mention" in ctx_res
+    print("  ✓ assemble_context generated transparent summary with token budget")
+
+    # 9. Milestone 6: get_workspace_outline tool (AST symbols)
+    outline_res = get_workspace_outline()
+    assert "Workspace AST Symbols" in outline_res
+    assert "ASTSymbolExtractor" in outline_res or "ContextAssembler" in outline_res
+    print("  ✓ get_workspace_outline extracted Python AST symbols and docstrings")
+
+    # 10. Milestone 5 & 6: /api/mentions endpoint for @file and @symbol autocomplete
+    mentions_res = client.get("/api/mentions?query=context")
+    assert mentions_res.status_code == 200
+    m_data = mentions_res.json()
+    assert any("context" in f.lower() for f in m_data["files"]) or any("context" in s["name"].lower() for s in m_data["symbols"])
+    print("  ✓ /api/mentions endpoint returned matching files and symbols")
+
+    print("\nAll Python backend sidecar tests passed successfully! 🚀")
 
 if __name__ == "__main__":
     test_backend()

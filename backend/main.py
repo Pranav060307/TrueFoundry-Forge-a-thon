@@ -10,6 +10,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from mcp.server.mcpserver import MCPServer
+from backend.context_engine import ContextAssembler, ASTSymbolExtractor
 
 # Initialize FastAPI and MCPServer
 app = FastAPI(title="TrueForge Python Sidecar Backend", version="0.1.0")
@@ -30,6 +31,7 @@ mcp = MCPServer(
 # Global in-memory state
 workspace_root: str = os.path.abspath(os.environ.get("WORKSPACE_ROOT", os.getcwd()))
 pending_edits: Dict[str, Dict[str, Any]] = {}
+context_assembler = ContextAssembler(workspace_root)
 
 # ----------------- MCP Tools -----------------
 
@@ -190,6 +192,35 @@ def run_command(command: str, timeout_seconds: int = 30) -> str:
         return f"Execution error: {str(exc)}"
 
 
+@mcp.tool(
+    name="assemble_context",
+    description="Assemble workspace context using BM25 search and AST symbol ranking under a strict 4,000-token budget with an explanation table."
+)
+def assemble_context(query: str, mentions: Optional[List[str]] = None, max_tokens: int = 4000) -> str:
+    context_assembler.workspace_root = workspace_root
+    context_assembler.max_tokens = max_tokens
+    res = context_assembler.assemble(query, mentions)
+    return res["full_context"]
+
+
+@mcp.tool(
+    name="get_workspace_outline",
+    description="Get AST symbol outline (classes, functions, methods) for Python files in workspace."
+)
+def get_workspace_outline(target_file: Optional[str] = None) -> str:
+    if target_file:
+        full_path = os.path.abspath(os.path.join(workspace_root, target_file))
+        syms = ASTSymbolExtractor.extract_symbols_from_file(full_path, target_file)
+    else:
+        syms = context_assembler.get_all_symbols()
+
+    if not syms:
+        return "No symbols found."
+
+    lines = [f"- `{s['name']}` ({s['kind']}) in {s['file']}:{s['line']} - {s['doc']}" for s in syms[:40]]
+    return f"Workspace AST Symbols ({len(syms)} total):\n" + "\n".join(lines)
+
+
 # ----------------- REST Endpoints -----------------
 
 @app.get("/health")
@@ -206,9 +237,10 @@ class SetWorkspaceRequest(BaseModel):
 
 @app.post("/api/workspace")
 def set_workspace(req: SetWorkspaceRequest):
-    global workspace_root
+    global workspace_root, context_assembler
     if os.path.exists(req.workspace_root):
         workspace_root = os.path.abspath(req.workspace_root)
+        context_assembler = ContextAssembler(workspace_root)
         return {"status": "ok", "workspace": workspace_root}
     raise HTTPException(status_code=400, detail="Workspace directory does not exist")
 
@@ -229,6 +261,23 @@ def clear_pending_edits(req: ClearEditRequest):
         pending_edits.clear()
     return {"status": "ok", "remaining": len(pending_edits)}
 
+@app.get("/api/mentions")
+def get_mentions(query: str = ""):
+    files = context_assembler.get_all_files()
+    symbols = context_assembler.get_all_symbols()
+
+    q = query.lower()
+    matching_files = [f for f in files if q in f.lower()][:15]
+    matching_syms = [
+        {"name": s["name"], "kind": s["kind"], "file": s["file"], "line": s["line"]}
+        for s in symbols if q in s["name"].lower()
+    ][:15]
+
+    return {
+        "files": matching_files,
+        "symbols": matching_syms,
+    }
+
 # Mount the MCP server as an SSE application under /mcp
 app.mount("/mcp", mcp.sse_app())
 
@@ -239,7 +288,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     workspace_root = os.path.abspath(args.workspace)
+    context_assembler = ContextAssembler(workspace_root)
     import uvicorn
     print(f"[Sidecar] Starting on http://127.0.0.1:{args.port} (Workspace: {workspace_root})")
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info")
-

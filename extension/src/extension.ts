@@ -9,11 +9,13 @@ import { DiffContentProvider } from './diffContentProvider';
 import { DiffCodeLensProvider } from './codeLensProvider';
 import { HunkRegistry } from './hunkRegistry';
 import { UndoManager } from './undoManager';
+import { ModelFailoverManager } from './failoverManager';
 
 let outputChannel: vscode.OutputChannel;
 let sidecarManager: SidecarManager;
 let trueforgeManager: TrueForgeManager;
 let trueforgeClient: TrueForgeClient;
+let failoverManager: ModelFailoverManager;
 let webviewProvider: AgentWebviewProvider;
 let undoManager: UndoManager;
 let hunkRegistry: HunkRegistry;
@@ -32,6 +34,7 @@ export async function activate(context: vscode.ExtensionContext) {
   outputChannel.appendLine(`[TrueForge Extension] Workspace Root: ${workspaceRoot}`);
 
   trueforgeClient = new TrueForgeClient(config.server.baseUrl);
+  failoverManager = new ModelFailoverManager(trueforgeClient, config);
 
   // Initialize Milestone 3 Diff Review & Undo Engine
   undoManager = new UndoManager();
@@ -92,7 +95,13 @@ export async function activate(context: vscode.ExtensionContext) {
   });
 
   // Register Webview Provider
-  webviewProvider = new AgentWebviewProvider(context.extensionUri, trueforgeClient, sidecarManager, hunkRegistry);
+  webviewProvider = new AgentWebviewProvider(
+    context.extensionUri,
+    trueforgeClient,
+    sidecarManager,
+    hunkRegistry,
+    failoverManager
+  );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(AgentWebviewProvider.viewType, webviewProvider)
   );
@@ -207,7 +216,7 @@ export async function activate(context: vscode.ExtensionContext) {
     'trueforge.testFakeDiff',
     async () => {
       const file1 = 'src/sample1.txt';
-      const file1Orig = 'line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\n';
+      const file1Orig = 'line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\n10\n';
       const file1Prop = 'line1\nHUNK1_A\nline3\nline4\nHUNK2_B\nline6\nline7\nHUNK3_C\nline9\nline10\n';
 
       const file2 = 'src/sample2.txt';
@@ -286,7 +295,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.executeCommand('workbench.view.extension.trueforge-explorer');
   });
 
-  // Milestone 4 Inline Edit Command (Selection + Instruction -> TrueForge)
+  // Milestone 4 Inline Edit Command (Selection + Instruction -> TrueForge with M7 Failover)
   const inlineEditCommand = vscode.commands.registerCommand('trueforge.inlineEdit', async () => {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -339,29 +348,20 @@ ${fileFullContent}
 ${selectedText ? `Selected target code:\n\`\`\`\n${selectedText}\n\`\`\`\n` : ''}
 Use the propose_write tool to propose the updated full contents of '${relPath}'. DO NOT attempt to write directly. Preserve existing code style and formatting.`;
 
-          const session = await trueforgeClient.createSession({
-            spec: {
-              model: { name: config.models.primary.modelId },
-              instructions:
-                'You are TrueForge Coding Agent. Carry out the user edit surgically and call propose_write to submit your proposed code.',
-              mcp_servers: [
-                {
-                  name: config.mcpServer.name || 'vscode-tools',
-                  enable_tools: ['@all'],
-                  require_approval_for_tools: ['@destructive', 'run_command'],
-                  preload: false,
-                },
-              ],
-            },
-          });
+          const instructions =
+            'You are TrueForge Coding Agent. Carry out the user edit surgically and call propose_write to submit your proposed code.';
 
-          await trueforgeClient.createTurnStream(
-            session.id,
+          await failoverManager.executeTurnWithFallback(
+            instructions,
             [{ type: 'user.message', content: prompt }],
             (event: TrueForgeEvent) => {
               if (event.type === 'model.message.delta' && event.content) {
                 outputChannel.append(event.content);
               }
+            },
+            (notice: string, fallbackModel: string) => {
+              outputChannel.appendLine(`\n[Failover] ${notice}`);
+              vscode.window.setStatusBarMessage(`$(warning) Primary failed, using fallback: ${fallbackModel}`, 8000);
             },
             abortController.signal
           );
@@ -398,7 +398,7 @@ Use the propose_write tool to propose the updated full contents of '${relPath}'.
     testFakeDiffCommand
   );
 
-  outputChannel.appendLine('[TrueForge Extension] Initialization complete with M3 Diff Review Engine & M4 Inline Edit.');
+  outputChannel.appendLine('[TrueForge Extension] Initialization complete with M3 Diff Review, M4 Inline Edit, M5 Agent Panel, M6 Context Engine & M7 Failover.');
 }
 
 export function deactivate() {

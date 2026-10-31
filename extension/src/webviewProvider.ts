@@ -5,6 +5,7 @@ import { TrueForgeClient, TrueForgeEvent } from './trueforgeClient';
 import { SidecarManager } from './sidecarManager';
 import { ConfigLoader } from './configLoader';
 import { HunkRegistry } from './hunkRegistry';
+import { ModelFailoverManager } from './failoverManager';
 
 export class AgentWebviewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'trueforge.agentPanel';
@@ -14,6 +15,7 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
   private trueforgeClient: TrueForgeClient;
   private sidecarManager: SidecarManager;
   private hunkRegistry: HunkRegistry;
+  private failoverManager: ModelFailoverManager;
   private currentSessionId?: string;
   private abortController?: AbortController;
   private statusInterval?: NodeJS.Timeout;
@@ -22,12 +24,14 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
     extensionUri: vscode.Uri,
     trueforgeClient: TrueForgeClient,
     sidecarManager: SidecarManager,
-    hunkRegistry: HunkRegistry
+    hunkRegistry: HunkRegistry,
+    failoverManager: ModelFailoverManager
   ) {
     this.extensionUri = extensionUri;
     this.trueforgeClient = trueforgeClient;
     this.sidecarManager = sidecarManager;
     this.hunkRegistry = hunkRegistry;
+    this.failoverManager = failoverManager;
   }
 
   public resolveWebviewView(
@@ -120,36 +124,19 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
 
   private async handleUserPrompt(userPrompt: string): Promise<void> {
     if (!this.view) return;
-    const config = ConfigLoader.getConfig();
 
     this.abortController = new AbortController();
     const turnId = `turn-${Date.now()}`;
     this.hunkRegistry.setTurnId(turnId);
 
     try {
-      if (!this.currentSessionId) {
-        const session = await this.trueforgeClient.createSession({
-          spec: {
-            model: { name: config.models.primary.modelId },
-            instructions:
-              'You are TrueForge Coding Agent, an expert software engineer embedded in VS Code. Use the available MCP tools to read, search, and propose changes.',
-            mcp_servers: [
-              {
-                name: config.mcpServer.name || 'vscode-tools',
-                enable_tools: ['@all'],
-                require_approval_for_tools: ['@destructive', 'run_command'],
-                preload: false,
-              },
-            ],
-          },
-        });
-        this.currentSessionId = session.id;
-      }
-
       this.view.webview.postMessage({ type: 'turnCreated', turnId });
 
-      await this.trueforgeClient.createTurnStream(
-        this.currentSessionId,
+      const instructions =
+        'You are TrueForge Coding Agent, an expert software engineer embedded in VS Code. Use the available MCP tools to read, search, and propose changes.';
+
+      const result = await this.failoverManager.executeTurnWithFallback(
+        instructions,
         [{ type: 'user.message', content: userPrompt }],
         (event: TrueForgeEvent) => {
           if (!this.view) return;
@@ -178,6 +165,13 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
               }
             }
           }
+        },
+        (notice: string, fallbackModel: string) => {
+          vscode.window.setStatusBarMessage(`$(warning) ${notice}`, 8000);
+          this.view?.webview.postMessage({
+            type: 'statusNotice',
+            message: `Primary failed, using fallback: ${fallbackModel}`,
+          });
         },
         this.abortController.signal
       );
