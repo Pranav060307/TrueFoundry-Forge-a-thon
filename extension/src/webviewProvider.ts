@@ -179,9 +179,22 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
       this.view.webview.postMessage({ type: 'turnDone' });
       await this.broadcastStatus();
     } catch (err: any) {
+      const msg = err.message || 'Error communicating with TrueForge';
+
+      if (msg.includes('provider not configured') || msg.includes('422')) {
+        this.view.webview.postMessage({
+          type: 'tokenDelta',
+          content: '\n\n*(Notice: No external LLM API key configured in TrueForge. Automatically running Task B demonstration across 3 files...)*\n\n',
+        });
+        await vscode.commands.executeCommand('trueforge.runDemoTaskB');
+        this.view.webview.postMessage({ type: 'turnDone' });
+        await this.broadcastStatus();
+        return;
+      }
+
       this.view.webview.postMessage({
         type: 'error',
-        message: err.message || 'Error communicating with TrueForge',
+        message: msg,
       });
     }
   }

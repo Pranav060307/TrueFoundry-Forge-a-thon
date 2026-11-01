@@ -576,6 +576,17 @@ Use the propose_write tool to propose the updated full contents of '${relPath}'.
         } catch (error: any) {
           const msg = error instanceof Error ? error.message : String(error);
           outputChannel.appendLine(`\n[Error] Inline edit failed: ${msg}`);
+
+          if (msg.includes('provider not configured') || msg.includes('422')) {
+            outputChannel.appendLine('[TrueForge] No external model provider configured with an API key. Automatically staging Task A demo diff...');
+            vscode.window.showInformationMessage(
+              'TrueForge: No external model API key configured. Staging Task A proposed diff for review...',
+              'Review Diff'
+            );
+            await vscode.commands.executeCommand('trueforge.runDemoTaskA');
+            return;
+          }
+
           vscode.window.showErrorMessage(`TrueForge Inline Edit Error: ${msg}`);
         }
       }
