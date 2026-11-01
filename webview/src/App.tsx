@@ -253,20 +253,54 @@ export default function App() {
             Sidecar: {sidecarStatus}
           </span>
           {pendingEditsCount > 0 && (
-            <span
-              style={{
-                padding: '2px 6px',
-                borderRadius: '4px',
-                backgroundColor: '#e65100',
-                color: '#fff',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-              }}
-              title="Click to open side-by-side diff review"
-              onClick={() => vscodeApi?.postMessage({ type: 'reviewDiff' })}
-            >
-              {pendingEditsCount} Pending Hunk{pendingEditsCount > 1 ? 's' : ''} (Review)
-            </span>
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <span
+                style={{
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  backgroundColor: '#e65100',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                }}
+                title="Click to open side-by-side diff review"
+                onClick={() => vscodeApi?.postMessage({ type: 'reviewDiff' })}
+              >
+                {pendingEditsCount} Pending
+              </span>
+              <button
+                style={{
+                  padding: '2px 7px',
+                  fontSize: '11px',
+                  backgroundColor: '#2e7d32',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                }}
+                title="Accept and apply all pending hunks to disk"
+                onClick={() => vscodeApi?.postMessage({ type: 'acceptAll' })}
+              >
+                ✓ Accept
+              </button>
+              <button
+                style={{
+                  padding: '2px 7px',
+                  fontSize: '11px',
+                  backgroundColor: '#c62828',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold',
+                }}
+                title="Discard all pending hunks"
+                onClick={() => vscodeApi?.postMessage({ type: 'rejectAll' })}
+              >
+                ✗ Reject
+              </button>
+            </div>
           )}
         </div>
       </div>

@@ -115,14 +115,19 @@ export async function activate(context: vscode.ExtensionContext) {
   function getActiveTarget(argFilePath?: string): string | undefined {
     if (argFilePath) return argFilePath;
     const activeEditor = vscode.window.activeTextEditor;
-    if (!activeEditor) return undefined;
-    const docUri = activeEditor.document.uri;
-    if (docUri.scheme === DiffContentProvider.scheme) {
-      let p = docUri.path.replace(/^\/+/, '');
-      if (p.startsWith('proposed/')) p = p.slice('proposed/'.length);
-      return decodeURIComponent(p);
+    if (activeEditor) {
+      const docUri = activeEditor.document.uri;
+      if (docUri.scheme === DiffContentProvider.scheme) {
+        let p = docUri.path.replace(/^\/+/, '');
+        if (p.startsWith('proposed/')) p = p.slice('proposed/'.length);
+        return decodeURIComponent(p);
+      }
+      const norm = hunkRegistry.normalizePath(docUri.fsPath);
+      if (hunkRegistry.getFileDiff(norm)) return norm;
     }
-    return hunkRegistry.normalizePath(docUri.fsPath);
+    // Fallback: Pick the first file that has pending hunks
+    const pending = hunkRegistry.getAllFileDiffs().find((f) => f.hunks.some((h) => h.state === 'pending'));
+    return pending ? pending.filePath : undefined;
   }
 
   // Command: Accept Single Hunk

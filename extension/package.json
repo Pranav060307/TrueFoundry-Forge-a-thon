@@ -51,12 +51,14 @@
       {
         "command": "trueforge.acceptAllHunks",
         "title": "TrueForge: Accept All Hunks",
-        "category": "TrueForge"
+        "category": "TrueForge",
+        "icon": "$(check)"
       },
       {
         "command": "trueforge.rejectAllHunks",
         "title": "TrueForge: Reject All Hunks",
-        "category": "TrueForge"
+        "category": "TrueForge",
+        "icon": "$(close)"
       },
       {
         "command": "trueforge.undoLastTurn",
@@ -87,6 +89,20 @@
         "when": "editorTextFocus"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "trueforge.acceptAllHunks",
+          "group": "navigation@1",
+          "when": "isInDiffEditor"
+        },
+        {
+          "command": "trueforge.rejectAllHunks",
+          "group": "navigation@2",
+          "when": "isInDiffEditor"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {

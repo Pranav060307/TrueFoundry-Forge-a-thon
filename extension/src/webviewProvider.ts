@@ -77,6 +77,14 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
           }
           break;
         }
+
+        case 'acceptAll':
+          await vscode.commands.executeCommand('trueforge.acceptAllHunks');
+          break;
+
+        case 'rejectAll':
+          await vscode.commands.executeCommand('trueforge.rejectAllHunks');
+          break;
       }
     });
 
