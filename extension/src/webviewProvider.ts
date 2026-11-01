@@ -85,18 +85,6 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
         case 'rejectAll':
           await vscode.commands.executeCommand('trueforge.rejectAllHunks');
           break;
-
-        case 'runDemoA':
-          await vscode.commands.executeCommand('trueforge.runDemoTaskA');
-          break;
-
-        case 'runDemoB':
-          await vscode.commands.executeCommand('trueforge.runDemoTaskB');
-          break;
-
-        case 'runDemoC':
-          await vscode.commands.executeCommand('trueforge.runDemoTaskC');
-          break;
       }
     });
 
@@ -200,17 +188,6 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
       await this.broadcastStatus();
     } catch (err: any) {
       const msg = err.message || 'Error communicating with TrueForge';
-
-      if (msg.includes('provider not configured') || msg.includes('422')) {
-        this.view.webview.postMessage({
-          type: 'tokenDelta',
-          content: '\n\n*(Notice: No external LLM API key configured in TrueForge. Automatically running Task B demonstration across 3 files...)*\n\n',
-        });
-        await vscode.commands.executeCommand('trueforge.runDemoTaskB');
-        this.view.webview.postMessage({ type: 'turnDone' });
-        await this.broadcastStatus();
-        return;
-      }
 
       this.view.webview.postMessage({
         type: 'error',

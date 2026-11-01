@@ -42,6 +42,10 @@ export default function App() {
   const [mentionSuggestions, setMentionSuggestions] = useState<MentionItem[]>([]);
   const [mentionIndex, setMentionIndex] = useState(0);
 
+  const TASK_A_PROMPT = "Treat the values 'off' and 'n' as false as well, case-insensitively, and update the docstring to list every value that is treated as false.";
+  const TASK_B_PROMPT = "Add a new built-in CLI command flask config that prints the loaded application's configuration as JSON, masking the values of any key containing SECRET, PASSWORD, TOKEN or KEY as '***'. It must appear in flask --help, be covered by a test, and be documented alongside the other built-in commands.";
+  const TASK_C_PROMPT = "Treat the values 'off' and 'n' as false as well, case-insensitively, and update the docstring to list every value that is treated as false.";
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -317,7 +321,7 @@ export default function App() {
           alignItems: 'center',
         }}
       >
-        <span style={{ fontSize: '10px', opacity: 0.7 }}>Demo Tasks:</span>
+        <span style={{ fontSize: '10px', opacity: 0.7 }}>Paste Task Prompts:</span>
         <button
           style={{
             fontSize: '10px',
@@ -328,8 +332,11 @@ export default function App() {
             borderRadius: '3px',
             cursor: 'pointer',
           }}
-          title="Run Task A: Inline Edit on src/flask/helpers.py (get_debug_flag)"
-          onClick={() => vscodeApi?.postMessage({ type: 'runDemoA' })}
+          title="Paste Task A prompt into chat"
+          onClick={() => {
+            setPrompt(TASK_A_PROMPT);
+            textareaRef.current?.focus();
+          }}
         >
           ⚡ Task A
         </button>
@@ -343,8 +350,11 @@ export default function App() {
             borderRadius: '3px',
             cursor: 'pointer',
           }}
-          title="Run Task B: Autonomous Agent Mode across 3+ files"
-          onClick={() => vscodeApi?.postMessage({ type: 'runDemoB' })}
+          title="Paste Task B prompt into chat"
+          onClick={() => {
+            setPrompt(TASK_B_PROMPT);
+            textareaRef.current?.focus();
+          }}
         >
           ⚡ Task B (3 Files)
         </button>
@@ -358,8 +368,11 @@ export default function App() {
             borderRadius: '3px',
             cursor: 'pointer',
           }}
-          title="Run Task C: Resilience & Transparent Auto Fallback"
-          onClick={() => vscodeApi?.postMessage({ type: 'runDemoC' })}
+          title="Paste Task C prompt into chat"
+          onClick={() => {
+            setPrompt(TASK_C_PROMPT);
+            textareaRef.current?.focus();
+          }}
         >
           ⚡ Task C (Failover)
         </button>
