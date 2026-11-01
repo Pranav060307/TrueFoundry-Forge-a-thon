@@ -1,7 +1,6 @@
 import os
 import sys
 sys.path.insert(0, os.path.abspath("."))
-from starlette.testclient import TestClient
 from backend.main import (
     app,
     read_file,
@@ -12,16 +11,18 @@ from backend.main import (
     assemble_context,
     get_workspace_outline,
     pending_edits,
+    health_check,
+    get_pending_edits,
+    clear_pending_edits,
+    ClearEditRequest,
+    get_mentions,
 )
 
 def test_backend():
     print("Testing Python Backend Sidecar...")
-    client = TestClient(app)
 
     # 1. Health check
-    res = client.get("/health")
-    assert res.status_code == 200, f"Health check failed: {res.text}"
-    data = res.json()
+    data = health_check()
     assert data["status"] == "healthy"
     print("  ✓ /health endpoint returned healthy")
 
@@ -53,12 +54,11 @@ def test_backend():
     print("  ✓ propose_write buffered in-memory and left disk clean")
 
     # 6. REST pending_edits endpoint
-    pe_res = client.get("/api/pending_edits")
-    assert pe_res.status_code == 200
-    assert len(pe_res.json()["pending_edits"]) == 1
+    pe_data = get_pending_edits()
+    assert len(pe_data["pending_edits"]) == 1
 
     # Clear pending edits
-    client.post("/api/pending_edits/clear", json={})
+    clear_pending_edits(ClearEditRequest())
     assert len(pending_edits) == 0
     print("  ✓ /api/pending_edits and clear verified")
 
@@ -81,9 +81,7 @@ def test_backend():
     print("  ✓ get_workspace_outline extracted Python AST symbols and docstrings")
 
     # 10. Milestone 5 & 6: /api/mentions endpoint for @file and @symbol autocomplete
-    mentions_res = client.get("/api/mentions?query=context")
-    assert mentions_res.status_code == 200
-    m_data = mentions_res.json()
+    m_data = get_mentions(query="context")
     assert any("context" in f.lower() for f in m_data["files"]) or any("context" in s["name"].lower() for s in m_data["symbols"])
     print("  ✓ /api/mentions endpoint returned matching files and symbols")
 

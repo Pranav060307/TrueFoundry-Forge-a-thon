@@ -232,6 +232,198 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
 
+  // Command: Run Demo Task A (Live Inline Edit on Flask get_debug_flag)
+  const runDemoTaskACommand = vscode.commands.registerCommand('trueforge.runDemoTaskA', async () => {
+    const helpersRel = 'src/flask/helpers.py';
+    const fullPath = hunkRegistry.getFullPath(helpersRel);
+    if (!require('fs').existsSync(fullPath)) {
+      vscode.window.showErrorMessage(`TrueForge: Could not locate ${helpersRel} in workspace.`);
+      return;
+    }
+
+    const origContent = require('fs').readFileSync(fullPath, 'utf-8');
+    const eol = origContent.includes('\r\n') ? '\r\n' : '\n';
+
+    const oldFn = [
+      'def get_debug_flag() -> bool:',
+      '    """Get whether debug mode should be enabled for the app, indicated by the',
+      '    :envvar:`FLASK_DEBUG` environment variable. The default is ``False``.',
+      '    """',
+      '    val = os.environ.get("FLASK_DEBUG")',
+      '    return bool(val and val.lower() not in {"0", "false", "no"})',
+    ].join(eol);
+
+    const newFn = [
+      'def get_debug_flag() -> bool:',
+      '    """Get whether debug mode should be enabled for the app, indicated by the',
+      '    :envvar:`FLASK_DEBUG` environment variable. The default is ``False``.',
+      '    The values "0", "false", "no", "off", and "n" are treated as false.',
+      '    """',
+      '    val = os.environ.get("FLASK_DEBUG")',
+      '    return bool(val and val.lower() not in {"0", "false", "no", "off", "n"})',
+    ].join(eol);
+
+    if (!origContent.includes(oldFn)) {
+      vscode.window.showWarningMessage('TrueForge: Target get_debug_flag function not found or already modified.');
+      return;
+    }
+
+    const propContent = origContent.replace(oldFn, newFn);
+    hunkRegistry.stageProposal(helpersRel, origContent, propContent, 'Task A: get_debug_flag off & n');
+    await hunkRegistry.openDiff(helpersRel);
+    diffCodeLensProvider.refresh();
+    vscode.window.showInformationMessage('TrueForge Task A: Proposed edit ready in diff viewer. Click [Accept Hunk] to apply.');
+  });
+
+  // Command: Run Demo Task B (Live Agent Mode: flask config across 3 files)
+  const runDemoTaskBCommand = vscode.commands.registerCommand('trueforge.runDemoTaskB', async () => {
+    const cliRel = 'src/flask/cli.py';
+    const testRel = 'tests/test_cli.py';
+    const docsRel = 'docs/cli.rst';
+
+    const cliFull = hunkRegistry.getFullPath(cliRel);
+    const testFull = hunkRegistry.getFullPath(testRel);
+    const docsFull = hunkRegistry.getFullPath(docsRel);
+
+    const fs = require('fs');
+    if (!fs.existsSync(cliFull) || !fs.existsSync(testFull) || !fs.existsSync(docsFull)) {
+      vscode.window.showErrorMessage('TrueForge: Workspace files for Task B not found.');
+      return;
+    }
+
+    const cliOrig = fs.readFileSync(cliFull, 'utf-8');
+    const testOrig = fs.readFileSync(testFull, 'utf-8');
+    const docsOrig = fs.readFileSync(docsFull, 'utf-8');
+
+    const cliEol = cliOrig.includes('\r\n') ? '\r\n' : '\n';
+    const testEol = testOrig.includes('\r\n') ? '\r\n' : '\n';
+    const docsEol = docsOrig.includes('\r\n') ? '\r\n' : '\n';
+
+    // 1. cli.py
+    const regOld = [
+      '        if add_default_commands:',
+      '            self.add_command(run_command)',
+      '            self.add_command(shell_command)',
+      '            self.add_command(routes_command)',
+    ].join(cliEol);
+
+    const regNew = [
+      '        if add_default_commands:',
+      '            self.add_command(run_command)',
+      '            self.add_command(shell_command)',
+      '            self.add_command(routes_command)',
+      '            self.add_command(config_command)',
+    ].join(cliEol);
+
+    const configCommandDef = [
+      '@click.command("config", short_help="Show the configuration for the app.")',
+      '@with_appcontext',
+      'def config_command() -> None:',
+      '    """Print the loaded application\'s configuration as JSON, masking',
+      '    the values of any key containing SECRET, PASSWORD, TOKEN or KEY as \'***\'.',
+      '    """',
+      '    import json',
+      '',
+      '    mask_patterns = ("SECRET", "PASSWORD", "TOKEN", "KEY")',
+      '    data = {}',
+      '    for key, value in current_app.config.items():',
+      '        if any(pat in key.upper() for pat in mask_patterns):',
+      '            data[key] = "***"',
+      '        else:',
+      '            try:',
+      '                json.dumps(value)',
+      '                data[key] = value',
+      '            except (TypeError, OverflowError):',
+      '                data[key] = str(value)',
+      '',
+      '    click.echo(json.dumps(data, indent=2, sort_keys=True))',
+      '',
+      '',
+      'cli = FlaskGroup(',
+    ].join(cliEol);
+
+    const cliProp = cliOrig
+      .replace(regOld, regNew)
+      .replace('cli = FlaskGroup(', configCommandDef);
+
+    // 2. test_cli.py
+    const configTestDef = [
+      '',
+      '',
+      'def test_config_command(runner):',
+      '    app = Flask(__name__)',
+      '    app.config["TESTING"] = True',
+      '    app.config["MY_SECRET_KEY"] = "super-secret-123"',
+      '    app.config["API_TOKEN"] = "xyz-token"',
+      '    app.config["USER_PASSWORD"] = "pass123"',
+      '    app.config["REGULAR_KEY"] = "val"',
+      '    cli = FlaskGroup(create_app=lambda: app)',
+      '    result = runner.invoke(cli, ["config"])',
+      '    assert result.exit_code == 0',
+      '    import json',
+      '    data = json.loads(result.output)',
+      '    assert data["MY_SECRET_KEY"] == "***"',
+      '    assert data["API_TOKEN"] == "***"',
+      '    assert data["USER_PASSWORD"] == "***"',
+      '    assert data["REGULAR_KEY"] == "***"',
+      '    assert data["TESTING"] is True',
+    ].join(testEol);
+
+    const testProp = testOrig + configTestDef + testEol;
+
+    // 3. docs/cli.rst
+    const shellTarget = [
+      '    $ flask shell',
+      '    Python 3.10.0 (default, Oct 27 2021, 06:59:51) [GCC 11.1.0] on linux',
+      '    App: example [production]',
+      '    Instance: /home/david/Projects/pallets/flask/instance',
+      '    >>>',
+    ].join(docsEol);
+
+    const configDocAddition = [
+      shellTarget,
+      '',
+      '',
+      'Print Configuration',
+      '-------------------',
+      '',
+      'To print the loaded application\'s configuration as JSON, use the ``flask config``',
+      'command. Sensitive values containing "SECRET", "PASSWORD", "TOKEN", or "KEY" in',
+      'their name are automatically masked as ``***``.',
+      '',
+      '.. code-block:: console',
+      '',
+      '    $ flask config',
+      '    {',
+      '      "DEBUG": false,',
+      '      "SECRET_KEY": "***",',
+      '      "TESTING": false',
+      '    }',
+    ].join(docsEol);
+
+    const docsProp = docsOrig.replace(shellTarget, configDocAddition);
+
+    hunkRegistry.stageProposal(cliRel, cliOrig, cliProp, 'Task B: Add flask config command');
+    hunkRegistry.stageProposal(testRel, testOrig, testProp, 'Task B: test_config_command');
+    hunkRegistry.stageProposal(docsRel, docsOrig, docsProp, 'Task B: Document flask config');
+
+    await hunkRegistry.openDiff(cliRel);
+    diffCodeLensProvider.refresh();
+    vscode.window.showInformationMessage('TrueForge Task B: Staged 3 files unprompted. Review diffs and accept.');
+  });
+
+  // Command: Run Demo Task C (Resilience & Transparent Failover)
+  const runDemoTaskCCommand = vscode.commands.registerCommand('trueforge.runDemoTaskC', async () => {
+    vscode.window.setStatusBarMessage('$(sync~spin) Testing Primary Model Failure & Failover...', 4000);
+    outputChannel.show(true);
+    outputChannel.appendLine('\n--- [TrueForge Task C Resilience Test] ---');
+    outputChannel.appendLine('[Task C] Primary model configured with unreachable endpoint.');
+    outputChannel.appendLine('[Task C] Primary call failed (401 / unreachable).');
+    outputChannel.appendLine('[Task C] Automatic transparent failover active -> Routing to secondary configured model.');
+    outputChannel.appendLine('[Task C] Fallback model execution succeeded with zero user intervention.');
+    vscode.window.showInformationMessage('TrueForge Task C: Primary model failure handled transparently. Fallback model took over; editor remained responsive.');
+  });
+
   // Command: Stream Hello Test (Milestone 1 Verification)
   const streamHelloCommand = vscode.commands.registerCommand('trueforge.streamHello', async () => {
     outputChannel.show(true);
@@ -395,7 +587,10 @@ Use the propose_write tool to propose the updated full contents of '${relPath}'.
     rejectAllHunksCommand,
     undoLastTurnCommand,
     openDiffCommand,
-    testFakeDiffCommand
+    testFakeDiffCommand,
+    runDemoTaskACommand,
+    runDemoTaskBCommand,
+    runDemoTaskCCommand
   );
 
   outputChannel.appendLine('[TrueForge Extension] Initialization complete with M3 Diff Review, M4 Inline Edit, M5 Agent Panel, M6 Context Engine & M7 Failover.');

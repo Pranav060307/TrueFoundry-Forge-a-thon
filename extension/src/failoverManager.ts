@@ -22,6 +22,12 @@ export class ModelFailoverManager {
    * Executes a turn with automatic transparent failover:
    * If primary model encounters an error (401, unreachable endpoint, 5xx, or turn error),
    * transparently re-routes to fallback model without user intervention or editor locks.
+   *
+   * Deeply integrates TrueForge context-engineering features:
+   * - Dynamic subagents for multi-file workspace reasoning
+   * - Automatic context compaction triggered at token limits
+   * - Large tool response compaction to prevent context window overflows
+   * - Deferred tool loading (preload: false)
    */
   public async executeTurnWithFallback(
     agentInstructions: string,
@@ -33,21 +39,42 @@ export class ModelFailoverManager {
     const primary = this.config.models.primary;
     const fallback = this.config.models.fallback;
 
+    // Build common TrueForge agent config enabling context engineering
+    const buildAgentSpec = (modelConfig: { modelId: string; params?: Record<string, any> }) => ({
+      model: { name: modelConfig.modelId, params: modelConfig.params },
+      instructions: agentInstructions,
+      mcp_servers: [
+        {
+          name: this.config.mcpServer.name || 'vscode-tools',
+          enable_tools: ['@all'],
+          require_approval_for_tools: ['@destructive', 'run_command'],
+          preload: false, // Deferred tool loading for prompt token efficiency
+        },
+      ],
+      config: {
+        dynamic_sub_agents: {
+          enabled: true,
+        },
+        context_management: {
+          compaction: {
+            enabled: true,
+            trigger: {
+              type: 'input_tokens',
+              value: this.config.agent?.contextCompactionTokens || 40000,
+            },
+          },
+          large_tool_response: {
+            enabled: true,
+          },
+        },
+        iteration_limit: this.config.agent?.iterationLimit || 50,
+      },
+    });
+
     // Attempt 1: Primary Model
     try {
       const session = await this.client.createSession({
-        spec: {
-          model: { name: primary.modelId, params: primary.params },
-          instructions: agentInstructions,
-          mcp_servers: [
-            {
-              name: this.config.mcpServer.name || 'vscode-tools',
-              enable_tools: ['@all'],
-              require_approval_for_tools: ['@destructive', 'run_command'],
-              preload: false,
-            },
-          ],
-        },
+        spec: buildAgentSpec(primary),
       });
 
       const finalEvent = await this.client.createTurnStream(
@@ -77,18 +104,7 @@ export class ModelFailoverManager {
       }
 
       const fallbackSession = await this.client.createSession({
-        spec: {
-          model: { name: fallback.modelId, params: fallback.params },
-          instructions: agentInstructions,
-          mcp_servers: [
-            {
-              name: this.config.mcpServer.name || 'vscode-tools',
-              enable_tools: ['@all'],
-              require_approval_for_tools: ['@destructive', 'run_command'],
-              preload: false,
-            },
-          ],
-        },
+        spec: buildAgentSpec(fallback),
       });
 
       const finalFallbackEvent = await this.client.createTurnStream(

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { MarkdownView } from './MarkdownView';
 
 // Acquire VS Code API once
 let vscodeApi: any = null;
@@ -334,7 +335,7 @@ export default function App() {
                 )}
               </div>
             ) : (
-              <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{m.content}</div>
+              <MarkdownView content={m.content} />
             )}
           </div>
         ))}

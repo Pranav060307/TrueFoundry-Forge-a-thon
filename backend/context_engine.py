@@ -310,3 +310,4 @@ class ContextAssembler:
             "explanation": explanation_header,
             "full_context": final_prompt_context,
         }
+

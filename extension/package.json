@@ -62,6 +62,21 @@
         "command": "trueforge.undoLastTurn",
         "title": "TrueForge: Undo Last Applied Turn",
         "category": "TrueForge"
+      },
+      {
+        "command": "trueforge.runDemoTaskA",
+        "title": "TrueForge: Run Demo Task A (Inline Edit)",
+        "category": "TrueForge"
+      },
+      {
+        "command": "trueforge.runDemoTaskB",
+        "title": "TrueForge: Run Demo Task B (Agent Mode 3+ Files)",
+        "category": "TrueForge"
+      },
+      {
+        "command": "trueforge.runDemoTaskC",
+        "title": "TrueForge: Run Demo Task C (Resilience & Fallback)",
+        "category": "TrueForge"
       }
     ],
     "keybindings": [

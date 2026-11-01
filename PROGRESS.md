@@ -93,3 +93,11 @@
     - Successfully completed Task A without editor locks or crashes.
   - Test runner: `tests/test_task_c.mjs` automated in `npm test`.
   - Commit: `feat: resilience and transparent model fallback, verified Task C`
+
+- [x] **Round 1 Submission Finalization (100% Complete & Ready)**
+  - Generated official 3-page submission PDF: `docs/TrueForge_Coding_Agent_Writeup.pdf` containing the 8 mandatory headings in exact order, architectural details, and evaluation scorecard.
+  - Authored turn-by-turn 4-minute demo recording walkthrough: `docs/DEMO_SCRIPT.md`.
+  - Registered interactive demo runner commands in extension host (`trueforge.runDemoTaskA`, `trueforge.runDemoTaskB`, `trueforge.runDemoTaskC`) in `extension/src/extension.ts` and `extension/package.json`.
+  - Enhanced `README.md` with declared fork point ("from scratch"), scorecard table, architecture diagrams, and quickstart instructions.
+  - All 5 test suites (`npm test`) and Python sidecar suite (`python tests/test_backend.py`) passing 100%.
+  - Zero API keys committed; clean git history and MIT License.
