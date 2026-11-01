@@ -305,6 +305,66 @@ export default function App() {
         </div>
       </div>
 
+      {/* Quick Actions Demo Bar */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '5px',
+          marginBottom: '8px',
+          paddingBottom: '8px',
+          borderBottom: '1px solid var(--vscode-panel-border, #333)',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+        }}
+      >
+        <span style={{ fontSize: '10px', opacity: 0.7 }}>Demo Tasks:</span>
+        <button
+          style={{
+            fontSize: '10px',
+            padding: '2px 6px',
+            backgroundColor: 'var(--vscode-badge-background, #2d3748)',
+            color: 'var(--vscode-badge-foreground, #f7fafc)',
+            border: '1px solid var(--vscode-panel-border, #4a5568)',
+            borderRadius: '3px',
+            cursor: 'pointer',
+          }}
+          title="Run Task A: Inline Edit on src/flask/helpers.py (get_debug_flag)"
+          onClick={() => vscodeApi?.postMessage({ type: 'runDemoA' })}
+        >
+          ⚡ Task A
+        </button>
+        <button
+          style={{
+            fontSize: '10px',
+            padding: '2px 6px',
+            backgroundColor: 'var(--vscode-badge-background, #2d3748)',
+            color: 'var(--vscode-badge-foreground, #f7fafc)',
+            border: '1px solid var(--vscode-panel-border, #4a5568)',
+            borderRadius: '3px',
+            cursor: 'pointer',
+          }}
+          title="Run Task B: Autonomous Agent Mode across 3+ files"
+          onClick={() => vscodeApi?.postMessage({ type: 'runDemoB' })}
+        >
+          ⚡ Task B (3 Files)
+        </button>
+        <button
+          style={{
+            fontSize: '10px',
+            padding: '2px 6px',
+            backgroundColor: 'var(--vscode-badge-background, #2d3748)',
+            color: 'var(--vscode-badge-foreground, #f7fafc)',
+            border: '1px solid var(--vscode-panel-border, #4a5568)',
+            borderRadius: '3px',
+            cursor: 'pointer',
+          }}
+          title="Run Task C: Resilience & Transparent Auto Fallback"
+          onClick={() => vscodeApi?.postMessage({ type: 'runDemoC' })}
+        >
+          ⚡ Task C (Failover)
+        </button>
+      </div>
+
       {/* Messages Scroll View */}
       <div style={{ flex: 1, overflowY: 'auto', marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {messages.map((m) => (

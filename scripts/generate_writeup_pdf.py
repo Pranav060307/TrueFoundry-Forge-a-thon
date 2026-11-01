@@ -225,17 +225,17 @@ def build_pdf(filename="docs/TrueForge_Coding_Agent_Writeup.pdf"):
     team_data = [
         [
             Paragraph("<b>Team Name:</b> ForgeCraft", style_body),
-            Paragraph("<b>Registration ID:</b> TF-2026-FORGE-884 (Techfest Portal)", style_body),
-            Paragraph("<b>Repository:</b> Public MIT (Round 1 Submission)", style_body),
+            Paragraph("<b>Registration ID:</b> TF-2026-FORGE-884", style_body),
+            Paragraph("<b>Repository:</b> github.com/Pranav060307/TrueFoundry-Forge-a-thon", style_body),
         ],
         [
-            Paragraph("<b>Lead Engineer:</b> Atharva Jadhav (Alum / Systems Eng.)", style_body),
-            Paragraph("<b>GitHub:</b> @atharvajadhav", style_body),
+            Paragraph("<b>Lead Engineer:</b> Pranav & Atharva", style_body),
+            Paragraph("<b>GitHub:</b> @Pranav060307", style_body),
             Paragraph("<b>Focus:</b> Extension Host, Diff Engine, Failover", style_body),
         ],
         [
             Paragraph("<b>Sidecar Engineer:</b> Team ForgeCraft Core", style_body),
-            Paragraph("<b>GitHub:</b> @forgecraft-team", style_body),
+            Paragraph("<b>GitHub:</b> @atharvajadhav", style_body),
             Paragraph("<b>Focus:</b> Python AST, BM25 Indexer, MCP Tools", style_body),
         ]
     ]

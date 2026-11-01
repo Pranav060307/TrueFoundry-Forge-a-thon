@@ -78,9 +78,16 @@ class BM25Ranker:
         self.df: Dict[str, int] = {}
         self.total_docs: int = 0
 
-    @staticmethod
-    def tokenize(text: str) -> List[str]:
-        return [w.lower() for w in re.findall(r"[A-Za-z0-9_]{2,}", text)]
+    STOPWORDS = {
+        "the", "a", "an", "and", "or", "in", "to", "for", "with", "is",
+        "it", "that", "this", "be", "as", "at", "by", "from", "of", "on",
+        "are", "was", "will", "can", "all", "any"
+    }
+
+    @classmethod
+    def tokenize(cls, text: str) -> List[str]:
+        words = [w.lower() for w in re.findall(r"[A-Za-z0-9_]{2,}", text)]
+        return [w for w in words if w not in cls.STOPWORDS]
 
     def index_documents(self, documents: List[Dict[str, Any]]) -> None:
         """
