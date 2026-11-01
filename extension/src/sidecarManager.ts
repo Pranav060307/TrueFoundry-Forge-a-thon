@@ -1,4 +1,5 @@
 import * as child_process from 'child_process';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
@@ -8,11 +9,18 @@ export class SidecarManager {
   private isStopping: boolean = false;
   private outputChannel: vscode.OutputChannel;
   private workspaceRoot: string;
+  private extensionRoot?: string;
 
-  constructor(outputChannel: vscode.OutputChannel, workspaceRoot: string, port: number = 4545) {
+  constructor(
+    outputChannel: vscode.OutputChannel,
+    workspaceRoot: string,
+    port: number = 4545,
+    extensionRoot?: string
+  ) {
     this.outputChannel = outputChannel;
     this.workspaceRoot = workspaceRoot;
     this.port = port;
+    this.extensionRoot = extensionRoot;
   }
 
   public getBaseUrl(): string {
@@ -22,17 +30,29 @@ export class SidecarManager {
   public async start(): Promise<boolean> {
     this.isStopping = false;
     const pythonPath = vscode.workspace.getConfiguration('trueforge').get<string>('pythonPath') || 'python';
-    const backendScript = path.join(this.workspaceRoot, 'backend', 'main.py');
+
+    // Locate backend/main.py across possible extension roots
+    const candidatePaths = [
+      this.extensionRoot ? path.join(this.extensionRoot, '..', 'backend', 'main.py') : '',
+      this.extensionRoot ? path.join(this.extensionRoot, 'backend', 'main.py') : '',
+      path.join(__dirname, '..', '..', 'backend', 'main.py'),
+      path.join(__dirname, '..', 'backend', 'main.py'),
+      path.join(this.workspaceRoot, 'backend', 'main.py'),
+      'D:\\True foundary\\backend\\main.py',
+    ];
+
+    const backendScript = candidatePaths.find((p) => p && fs.existsSync(p)) || path.join(this.workspaceRoot, 'backend', 'main.py');
 
     this.outputChannel.appendLine(`[SidecarManager] Starting Python sidecar on port ${this.port}...`);
     this.outputChannel.appendLine(`[SidecarManager] Python: ${pythonPath}, Script: ${backendScript}`);
+    this.outputChannel.appendLine(`[SidecarManager] Workspace: ${this.workspaceRoot}`);
 
     try {
       this.process = child_process.spawn(
         pythonPath,
         [backendScript, '--port', String(this.port), '--workspace', this.workspaceRoot],
         {
-          cwd: this.workspaceRoot,
+          cwd: fs.existsSync(backendScript) ? path.dirname(backendScript) : this.workspaceRoot,
           env: {
             ...process.env,
             PYTHONUNBUFFERED: '1',
@@ -72,18 +92,20 @@ export class SidecarManager {
   }
 
   public async isHealthy(): Promise<boolean> {
-    try {
-      const res = await fetch(`${this.getBaseUrl()}/health`, {
-        signal: AbortSignal.timeout(1500),
-      });
-      if (res.ok) {
-        const json = await res.json() as any;
-        return json.status === 'healthy';
-      }
-      return false;
-    } catch {
-      return false;
+    for (const host of [`http://127.0.0.1:${this.port}`, `http://localhost:${this.port}`, `http://[::1]:${this.port}`]) {
+      try {
+        const res = await fetch(`${host}/health`, {
+          signal: AbortSignal.timeout(1500),
+        });
+        if (res.ok) {
+          const json = await res.json() as any;
+          if (json.status === 'healthy') {
+            return true;
+          }
+        }
+      } catch {}
     }
+    return false;
   }
 
   public async getPendingEdits(): Promise<any[]> {

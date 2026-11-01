@@ -74,14 +74,17 @@ export class TrueForgeManager {
   }
 
   public async isHealthy(): Promise<boolean> {
-    try {
-      const res = await fetch(`${this.getBaseUrl()}/api/v1/sessions`, {
-        signal: AbortSignal.timeout(1500),
-      });
-      return res.status < 500;
-    } catch {
-      return false;
+    for (const url of [`http://localhost:${this.port}`, `http://127.0.0.1:${this.port}`, `http://[::1]:${this.port}`]) {
+      try {
+        const res = await fetch(`${url}/api/v1/sessions`, {
+          signal: AbortSignal.timeout(1500),
+        });
+        if (res.status < 500) {
+          return true;
+        }
+      } catch {}
     }
+    return false;
   }
 
   public stop(): void {

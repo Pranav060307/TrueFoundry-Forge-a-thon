@@ -52,16 +52,26 @@ export class TrueForgeClient {
    * Health check on TrueForge server.
    */
   public async isHealthy(): Promise<boolean> {
-    try {
-      const res = await fetch(`${this.baseUrl}/api/v1/sessions`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-        signal: AbortSignal.timeout(2000),
-      });
-      return res.status < 500;
-    } catch {
-      return false;
+    const candidates = [
+      this.baseUrl,
+      'http://localhost:8790',
+      'http://127.0.0.1:8790',
+      'http://[::1]:8790',
+    ];
+    for (const url of candidates) {
+      try {
+        const res = await fetch(`${url}/api/v1/sessions`, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          signal: AbortSignal.timeout(1500),
+        });
+        if (res.status < 500) {
+          this.baseUrl = url;
+          return true;
+        }
+      } catch {}
     }
+    return false;
   }
 
   /**

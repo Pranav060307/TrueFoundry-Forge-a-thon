@@ -65,7 +65,12 @@ export async function activate(context: vscode.ExtensionContext) {
   trueforgeManager.start();
 
   // Start Python Sidecar
-  sidecarManager = new SidecarManager(outputChannel, workspaceRoot, config.mcpServer.port || 4545);
+  sidecarManager = new SidecarManager(
+    outputChannel,
+    workspaceRoot,
+    config.mcpServer.port || 4545,
+    context.extensionUri.fsPath
+  );
   context.subscriptions.push({ dispose: () => sidecarManager.stop() });
 
   // Launch sidecar in background and register MCP with TrueForge

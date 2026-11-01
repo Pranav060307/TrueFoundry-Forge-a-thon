@@ -1,5 +1,9 @@
 import os
 import sys
+# Ensure parent directory is in sys.path so 'backend' package resolves regardless of cwd
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
 import json
 import fnmatch
 import subprocess
@@ -10,7 +14,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from mcp.server.mcpserver import MCPServer
-from backend.context_engine import ContextAssembler, ASTSymbolExtractor
+
+try:
+    from backend.context_engine import ContextAssembler, ASTSymbolExtractor
+except ImportError:
+    from context_engine import ContextAssembler, ASTSymbolExtractor
 
 # Initialize FastAPI and MCPServer
 app = FastAPI(title="TrueForge Python Sidecar Backend", version="0.1.0")
