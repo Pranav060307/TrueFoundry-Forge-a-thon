@@ -10,7 +10,8 @@ An autonomous, model-agnostic VS Code coding agent built for the **TrueFoundry F
 
 - **Official Repository:** [https://github.com/Pranav060307/TrueFoundry-Forge-a-thon.git](https://github.com/Pranav060307/TrueFoundry-Forge-a-thon.git)
 - **Technical Write-up PDF:** [`docs/TrueForge_Coding_Agent_Writeup.pdf`](docs/TrueForge_Coding_Agent_Writeup.pdf) (Exact 3-page submission adhering to all 8 mandatory headings)
-- **4-Minute Demo Video Script:** [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) (Turn-by-turn video walkthrough for Tasks A, B, and C)
+- **Demo Video Script PDF:** [`docs/TrueForge_Demo_Video_Script.pdf`](docs/TrueForge_Demo_Video_Script.pdf) (Complete 4-minute production script in PDF) | Markdown: [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
+- **Full Development Chat History PDF:** [`docs/TrueForge_Development_Chat_History.pdf`](docs/TrueForge_Development_Chat_History.pdf) (25-page comprehensive engineering transcript)
 
 ---
 
