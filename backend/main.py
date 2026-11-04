@@ -5,15 +5,18 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 
 import json
+import asyncio
 import fnmatch
 import subprocess
 import argparse
 from typing import Optional, Dict, Any, List
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from mcp.server.mcpserver import MCPServer
+import httpx2
 
 try:
     from backend.context_engine import ContextAssembler, ASTSymbolExtractor
@@ -39,12 +42,16 @@ mcp = MCPServer(
 # Global in-memory state
 workspace_root: str = os.path.abspath(os.environ.get("WORKSPACE_ROOT", os.getcwd()))
 pending_edits: Dict[str, Dict[str, Any]] = {}
+thought_signatures: Dict[str, str] = {}
 context_assembler = ContextAssembler(workspace_root)
 
 # ----------------- MCP Tools -----------------
 
-@mcp.tool(name="read_file", description="Read the contents of a file within the workspace. Supports optional line range slicing.")
-def read_file(path: str, start_line: Optional[int] = None, end_line: Optional[int] = None) -> str:
+@mcp.tool(
+    name="read_file",
+    description="Read the complete, exact contents of a file in the workspace."
+)
+def read_file(path: str) -> str:
     full_path = os.path.abspath(os.path.join(workspace_root, path))
     if not full_path.startswith(workspace_root) and not os.path.exists(full_path):
         return f"Error: Path '{path}' is outside workspace or does not exist."
@@ -53,23 +60,17 @@ def read_file(path: str, start_line: Optional[int] = None, end_line: Optional[in
     if os.path.isdir(full_path):
         return f"Error: '{path}' is a directory, not a file."
 
+    print(f"[Sidecar MCP Tool] read_file(path={path})", flush=True)
     try:
         with open(full_path, "r", encoding="utf-8", errors="replace") as f:
-            lines = f.readlines()
-
-        total_lines = len(lines)
-        s = 1 if start_line is None else max(1, start_line)
-        e = total_lines if end_line is None else min(total_lines, end_line)
-
-        selected = lines[s - 1 : e]
-        numbered_lines = [f"{s + idx}: {line}" for idx, line in enumerate(selected)]
-        return f"File: {path} (Lines {s}-{e} of {total_lines})\n" + "".join(numbered_lines)
+            return f.read()
     except Exception as exc:
         return f"Error reading file '{path}': {str(exc)}"
 
 
 @mcp.tool(name="list_dir", description="List files and directories in a workspace folder.")
 def list_dir(directory: str = ".", recursive: bool = False, limit: int = 100) -> str:
+    print(f"[Sidecar MCP Tool] list_dir(dir={directory}, rec={recursive})", flush=True)
     target_dir = os.path.abspath(os.path.join(workspace_root, directory))
     if not os.path.exists(target_dir):
         return f"Error: Directory '{directory}' not found."
@@ -109,6 +110,7 @@ def list_dir(directory: str = ".", recursive: bool = False, limit: int = 100) ->
 
 @mcp.tool(name="search_workspace", description="Search for text or regex patterns across workspace files.")
 def search_workspace(query: str, is_regex: bool = False, file_pattern: Optional[str] = None) -> str:
+    print(f"[Sidecar MCP Tool] search_workspace(query='{query}', regex={is_regex}, pattern={file_pattern})", flush=True)
     ignored_dirs = {".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "out"}
     matches: List[str] = []
     max_matches = 50
@@ -144,9 +146,10 @@ def search_workspace(query: str, is_regex: bool = False, file_pattern: Optional[
 
 @mcp.tool(
     name="propose_write",
-    description="Propose creating or updating a file. DOES NOT WRITE TO DISK. Buffers edit in memory for human diff review."
+    description="REQUIRED tool to submit code edits. DO NOT print code in chat. Submit your proposed file modifications by calling this tool with path, content, and reason. Buffers in memory for human diff review."
 )
 def propose_write(path: str, content: str, reason: str) -> str:
+    print(f"[Sidecar MCP Tool] propose_write(path={path}, reason={reason[:50]}..., length={len(content)})", flush=True)
     full_path = os.path.abspath(os.path.join(workspace_root, path))
     norm_path = os.path.relpath(full_path, workspace_root).replace("\\", "/")
 
@@ -285,6 +288,126 @@ def get_mentions(query: str = ""):
         "files": matching_files,
         "symbols": matching_syms,
     }
+
+# ----------------- Google Gemini OpenAI Compatibility Bridge -----------------
+# Seamlessly preserves thought_signatures required for Gemini 3 tool calling
+GOOGLE_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+
+@app.post("/openai/chat/completions")
+@app.post("/openai/v1/chat/completions")
+async def openai_chat_completions(req: Request):
+    body = await req.json()
+    auth = req.headers.get("authorization", "")
+    model = body.get("model", "")
+    messages = body.get("messages", [])
+
+    print(f"\n[Bridge Request] Model: {model} | Messages count: {len(messages)} | Last role: {messages[-1].get('role') if messages else 'none'}", flush=True)
+
+    # Re-inject thought signatures for any tool calls in assistant messages
+    re_injected_count = 0
+    for msg in messages:
+        if msg.get("role") == "assistant" and "tool_calls" in msg:
+            for tc in msg.get("tool_calls", []):
+                t_id = tc.get("id")
+                if t_id and t_id in thought_signatures:
+                    tc["extra_content"] = {
+                        "google": {
+                            "thought_signature": thought_signatures[t_id]
+                        }
+                    }
+                    re_injected_count += 1
+                elif t_id:
+                    print(f"[Bridge Warning] Tool call {t_id} NOT found in signatures cache! (Cached: {list(thought_signatures.keys())})", flush=True)
+
+    if re_injected_count > 0:
+        print(f"[Bridge] Successfully re-injected {re_injected_count} thought signature(s).", flush=True)
+
+    headers = {"Authorization": auth, "Content-Type": "application/json"}
+    is_stream = body.get("stream", False)
+    client = httpx2.AsyncClient(timeout=120.0)
+
+    if not is_stream:
+        try:
+            resp = await client.post(GOOGLE_OPENAI_URL, json=body, headers=headers)
+            try:
+                data = resp.json()
+                for choice in data.get("choices", []):
+                    msg = choice.get("message", {})
+                    for tc in msg.get("tool_calls", []):
+                        t_id = tc.get("id")
+                        sig = tc.get("extra_content", {}).get("google", {}).get("thought_signature")
+                        if t_id and sig:
+                            thought_signatures[t_id] = sig
+            except Exception:
+                pass
+            return Response(content=resp.content, status_code=resp.status_code, media_type="application/json")
+        finally:
+            await client.aclose()
+    else:
+        max_retries = 3
+        google_resp = None
+        for attempt in range(max_retries):
+            google_req = client.build_request("POST", GOOGLE_OPENAI_URL, json=body, headers=headers)
+            google_resp = await client.send(google_req, stream=True)
+            if google_resp.status_code == 429 and attempt < max_retries - 1:
+                body_bytes = await google_resp.aread()
+                retry_sec = 15
+                try:
+                    err_json = json.loads(body_bytes.decode())
+                    for detail in err_json.get("error", {}).get("details", []):
+                        if "retryDelay" in detail:
+                            delay_str = detail["retryDelay"].rstrip("s")
+                            retry_sec = max(int(float(delay_str)), 5)
+                except Exception:
+                    pass
+                print(f"\n[Bridge 429 Throttle] Pausing {retry_sec}s for Google rate limit window reset...", flush=True)
+                await asyncio.sleep(retry_sec + 1)
+                continue
+            break
+
+        async def stream_generator():
+            try:
+                buffer = ""
+                async for chunk in google_resp.aiter_bytes():
+                    buffer += chunk.decode("utf-8", errors="ignore")
+                    lines = buffer.split("\n")
+                    buffer = lines.pop()
+                    for line in lines:
+                        if line.startswith("data: ") and not line.strip().endswith("[DONE]"):
+                            try:
+                                d = json.loads(line[6:].strip())
+                                for choice in d.get("choices", []):
+                                    delta = choice.get("delta", {})
+                                    for tc in delta.get("tool_calls", []):
+                                        t_id = tc.get("id")
+                                        fn = tc.get("function", {})
+                                        fn_name = fn.get("name")
+                                        fn_args = fn.get("arguments")
+                                        if fn_name:
+                                            print(f"\n[Bridge LLM Generates Tool Call]: {fn_name}", flush=True)
+                                        if fn_args:
+                                            print(f" {fn_args}", end="", flush=True)
+                                        sig = tc.get("extra_content", {}).get("google", {}).get("thought_signature")
+                                        if t_id and sig:
+                                            thought_signatures[t_id] = sig
+                                            print(f"\n[Bridge Stream] Cached thought signature for {t_id}: {sig[:30]}...", flush=True)
+                            except Exception:
+                                pass
+                    yield chunk
+            finally:
+                await google_resp.aclose()
+                await client.aclose()
+
+        return StreamingResponse(
+            stream_generator(),
+            status_code=google_resp.status_code,
+            media_type="text/event-stream"
+        )
+
+@app.get("/mcp")
+def mcp_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/mcp/sse")
 
 # Mount the MCP server as an SSE application under /mcp
 app.mount("/mcp", mcp.sse_app())

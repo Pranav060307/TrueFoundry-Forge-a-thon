@@ -85,7 +85,7 @@ export async function activate(context: vscode.ExtensionContext) {
             manifest: {
               type: 'remote',
               name: config.mcpServer.name || 'vscode-tools',
-              url: config.mcpServer.url || 'http://127.0.0.1:4545/mcp',
+              url: config.mcpServer.url || 'http://127.0.0.1:4545/mcp/sse',
               description: 'VS Code editor tools for reading, searching, proposing writes, and running commands',
             },
           }),

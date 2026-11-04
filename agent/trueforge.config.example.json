@@ -27,7 +27,7 @@
   "mcpServer": {
     "name": "vscode-tools",
     "port": 4545,
-    "url": "http://127.0.0.1:4545/mcp"
+    "url": "http://127.0.0.1:4545/mcp/sse"
   },
   "agent": {
     "name": "trueforge-coding-agent",

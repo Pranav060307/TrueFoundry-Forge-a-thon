@@ -22,4 +22,5 @@ venv/
 ENV/
 *.sqlite
 trueforge.db
+scratch/
 

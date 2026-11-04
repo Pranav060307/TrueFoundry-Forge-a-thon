@@ -34,7 +34,7 @@ This script serves as the exact turn-by-turn production guide for recording the 
   4. Press `Enter`. Show the in-memory staging in action:
      - Side-by-side virtual diff opens (`trueforge-diff://src/flask/helpers.py`).
      - 0-line context Myers diff hunks appear with CodeLens action buttons: `[✓ Accept Hunk] [✗ Reject Hunk]`.
-  5. Click `[✓ Accept Hunk]` on both hunks (or run Command Palette `TrueForge: Run Demo Task A`).
+  5. Click `[✓ Accept Hunk]` on each hunk (or click `✓ Accept` in the TrueForge panel status bar).
 * **On-Screen Verification (Terminal):**
   1. Run:
      ```bash
@@ -142,9 +142,6 @@ This script serves as the exact turn-by-turn production guide for recording the 
 ## 💡 Practical Recording Tips
 1. **Resolution:** 1080p (1920x1080) at 30 or 60 fps with clear editor font size (14-16px).
 2. **Terminal:** Have your commands pre-written in a side buffer or shell history so you can press `Up Arrow + Enter` quickly to avoid wasting time typing.
-3. **Interactive Demo Commands:** You can also use the built-in demo commands from the VS Code Command Palette:
-   - `TrueForge: Run Demo Task A (Inline Edit)`
-   - `TrueForge: Run Demo Task B (Agent Mode 3+ Files)`
-   - `TrueForge: Run Demo Task C (Resilience & Fallback)`
+3. **Quick Action Task Prompt Buttons:** Use the one-click task prompt buttons in the Webview panel (`⚡ Task A`, `⚡ Task B (3 Files)`) to instantly paste the exact competition task prompts into the agent input.
 4. **Video Upload:** Upload as **Unlisted** on YouTube or **Anyone with the link can view** on Google Drive as required by the Techfest Competition Portal.
 

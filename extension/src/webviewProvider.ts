@@ -107,7 +107,8 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
     try {
       const pendingEdits = await this.sidecarManager.getPendingEdits();
       for (const pe of pendingEdits) {
-        if (!this.hunkRegistry.getFileDiff(pe.path)) {
+        const existing = this.hunkRegistry.getFileDiff(pe.path);
+        if (!existing || existing.proposedContent !== pe.proposed_content) {
           this.hunkRegistry.stageProposal(
             pe.path,
             pe.original_content,
