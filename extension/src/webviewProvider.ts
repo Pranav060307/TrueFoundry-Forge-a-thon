@@ -41,12 +41,16 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
   ): void {
     this.view = webviewView;
 
+    const resourceRoots = [
+      this.extensionUri,
+      vscode.Uri.file(path.join(this.extensionUri.fsPath, '..', 'webview', 'dist')),
+      vscode.Uri.file(path.join(this.extensionUri.fsPath, 'webview-dist')),
+      vscode.Uri.file(path.join(this.extensionUri.fsPath, 'webview', 'dist')),
+    ];
+
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [
-        this.extensionUri,
-        vscode.Uri.file(path.join(this.extensionUri.fsPath, '..', 'webview', 'dist')),
-      ],
+      localResourceRoots: resourceRoots,
     };
 
     webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
@@ -286,7 +290,12 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
   }
 
   private getHtmlForWebview(webview: vscode.Webview): string {
-    const webviewDist = path.join(this.extensionUri.fsPath, '..', 'webview', 'dist');
+    const candidates = [
+      path.join(this.extensionUri.fsPath, '..', 'webview', 'dist'),
+      path.join(this.extensionUri.fsPath, 'webview-dist'),
+      path.join(this.extensionUri.fsPath, 'webview', 'dist'),
+    ];
+    const webviewDist = candidates.find((p) => fs.existsSync(path.join(p, 'index.html'))) || candidates[0];
     const indexPath = path.join(webviewDist, 'index.html');
 
     if (!fs.existsSync(indexPath)) {

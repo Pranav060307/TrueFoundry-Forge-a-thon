@@ -19,6 +19,9 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
+    "onView:trueforge.agentPanel",
+    "onCommand:trueforge.openAgentPanel",
+    "onCommand:trueforge.inlineEdit",
     "onStartupFinished"
   ],
   "contributes": {
@@ -108,7 +111,7 @@
         {
           "id": "trueforge-explorer",
           "title": "TrueForge Agent",
-          "icon": "$(sparkle)"
+          "icon": "resources/icon.svg"
         }
       ]
     },
@@ -158,4 +161,3 @@
     "typescript": "^5.7.0"
   }
 }
-

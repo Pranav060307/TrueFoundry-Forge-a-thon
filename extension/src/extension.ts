@@ -280,8 +280,17 @@ export async function activate(context: vscode.ExtensionContext) {
     );
   });
 
-  const openAgentPanelCommand = vscode.commands.registerCommand('trueforge.openAgentPanel', () => {
-    vscode.commands.executeCommand('workbench.view.extension.trueforge-explorer');
+  const openAgentPanelCommand = vscode.commands.registerCommand('trueforge.openAgentPanel', async () => {
+    try {
+      await vscode.commands.executeCommand('workbench.view.extension.trueforge-explorer');
+    } catch {
+      // ignore
+    }
+    try {
+      await vscode.commands.executeCommand('trueforge.agentPanel.focus');
+    } catch {
+      // ignore
+    }
   });
 
   // Milestone 4 Inline Edit Command (Selection + Instruction -> TrueForge with M7 Failover)
