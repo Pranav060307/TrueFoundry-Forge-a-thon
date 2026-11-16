@@ -82,11 +82,11 @@ export default function App() {
   const [mentionIndex, setMentionIndex] = useState(0);
 
   const TASK_A_PROMPT =
-    "Treat the values 'off' and 'n' as false as well, case-insensitively, and update the docstring to list every value that is treated as false.";
+    "In 'src/flask/helpers.py' (get_debug_flag): Treat the values 'off' and 'n' as false as well, case-insensitively, and update the docstring to list every value that is treated as false.";
   const TASK_B_PROMPT =
     "Add a new built-in CLI command flask config that prints the loaded application's configuration as JSON, masking the values of any key containing SECRET, PASSWORD, TOKEN or KEY as '***'. It must appear in flask --help, be covered by a test, and be documented alongside the other built-in commands.";
   const TASK_C_PROMPT =
-    "Treat the values 'off' and 'n' as false as well, case-insensitively, and update the docstring to list every value that is treated as false.";
+    "In 'src/flask/helpers.py' (get_debug_flag): Treat the values 'off' and 'n' as false as well, case-insensitively, and update the docstring to list every value that is treated as false.";
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);

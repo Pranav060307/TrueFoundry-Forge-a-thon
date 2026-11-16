@@ -203,12 +203,27 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
     try {
       this.view.webview.postMessage({ type: 'turnCreated', turnId });
 
+      const activeEditor = vscode.window.activeTextEditor;
+      let activeContext = '';
+      if (activeEditor) {
+        const rel = this.hunkRegistry.normalizePath(activeEditor.document.uri.fsPath);
+        if (rel && !rel.startsWith('..')) {
+          activeContext = `[Active Editor: ${rel}]\n`;
+        }
+      }
+
       const instructions =
-        'You are TrueForge Coding Agent, an expert software engineer embedded in VS Code. Use the available MCP tools to read, search, and propose changes.';
+        'You are TrueForge Coding Agent embedded in VS Code. ' +
+        'You have MCP tools: read_file, search_workspace, list_dir, propose_write. ' +
+        'When instructed to edit or inspect code, immediately read the relevant file using read_file, ' +
+        'and propose modifications using propose_write(path, content, reason). ' +
+        'Be fast, concise, and focused. Never run redundant searches if the target file is known or mentioned.';
+
+      const promptContent = `${activeContext}${userPrompt}`;
 
       const result = await this.failoverManager.executeTurnWithFallback(
         instructions,
-        [{ type: 'user.message', content: userPrompt }],
+        [{ type: 'user.message', content: promptContent }],
         (event: TrueForgeEvent) => {
           if (!this.view) return;
 
