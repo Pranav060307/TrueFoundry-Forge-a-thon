@@ -240,12 +240,27 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
             });
           } else if (event.type === 'model.message' && event.tool_calls) {
             for (const tc of event.tool_calls) {
-              const toolName = tc.function?.name || tc.tool_info?.name || 'tool';
+              let toolName = tc.function?.name || tc.tool_info?.name || 'tool';
+              let toolArgs = tc.function?.arguments;
+
+              // TrueForge wraps MCP calls in call_tool
+              if (toolName === 'call_tool' && toolArgs) {
+                try {
+                  const parsed = typeof toolArgs === 'string' ? JSON.parse(toolArgs) : toolArgs;
+                  if (parsed.tool_name) {
+                    toolName = parsed.tool_name;
+                    toolArgs = parsed.input || {};
+                  }
+                } catch {
+                  // ignore
+                }
+              }
+
               toolTimes.set(toolName, Date.now());
               this.view.webview.postMessage({
                 type: 'toolCall',
                 toolName,
-                args: tc.function?.arguments,
+                args: toolArgs,
               });
 
               // If propose_write was called, sync immediately and notify

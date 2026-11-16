@@ -45,10 +45,9 @@ export class ModelFailoverManager {
       instructions: agentInstructions,
       mcp_servers: [
         {
-          name: this.config.mcpServer.name || 'vscode-tools',
+          name: this.config.mcpServer?.name || 'vscode-tools',
           enable_tools: ['@all'],
-          require_approval_for_tools: ['@destructive', 'run_command'],
-          preload: false, // Deferred tool loading for prompt token efficiency
+          preload: true,
         },
       ],
       config: {

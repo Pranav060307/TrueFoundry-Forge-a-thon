@@ -126,7 +126,15 @@ export default function App() {
           if (msg.trueforge) setTrueforgeStatus(msg.trueforge);
           if (msg.sidecar) setSidecarStatus(msg.sidecar);
           if (typeof msg.pendingEdits === 'number') setPendingEditsCount(msg.pendingEdits);
-          if (msg.stagedFiles) setStagedFiles(msg.stagedFiles);
+          if (msg.stagedFiles) {
+            setStagedFiles(msg.stagedFiles);
+            if (msg.pendingEdits > 0 && activeTab === 'chat') {
+              setToast({
+                message: `✨ ${msg.pendingEdits} hunk(s) staged! Click '📝 Staged Changes' tab to review.`,
+                type: 'success',
+              });
+            }
+          }
           if (msg.models) setModels(msg.models);
           break;
 
@@ -720,7 +728,28 @@ export default function App() {
                   )}
                 </div>
               ) : (
-                <MarkdownView content={m.content} />
+                m.content ? (
+                  <MarkdownView content={m.content} />
+                ) : (
+                  <div style={{ fontSize: '12px', color: '#81c784', display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 0' }}>
+                    <span>⚡ Changes staged in memory.</span>
+                    <button
+                      onClick={() => setActiveTab('staged')}
+                      style={{
+                        padding: '3px 8px',
+                        fontSize: '11px',
+                        backgroundColor: '#e65100',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      Review Diff →
+                    </button>
+                  </div>
+                )
               )}
             </div>
           ))}
