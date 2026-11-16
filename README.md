@@ -107,13 +107,20 @@ The system strictly decouples **Agent Reasoning** from **Editor Capabilities**. 
 - **Budget Manager:** Enforces a strict 4,000-token context budget and renders a transparent markdown explanation table detailing which files were included, their BM25 score, and exact token cost.
 
 ### 4. Diff Review & VS Code Native Undo
-- **Tri-Channel Review Interface:**
-  1. **In-Editor CodeLens:** `[✓ Accept Hunk]` and `[✗ Reject Hunk]` inline above each modified block.
-  2. **Sidebar Quick Actions:** Dedicated `[✓ Accept]` and `[✗ Reject]` buttons in the Agent Panel header.
-  3. **Editor Title Toolbar:** Native `$(check)` and `$(close)` icons in the editor tab bar (vital for screen-reader and keyboard-accessibility modes).
+- **Quad-Channel Review Interface:**
+  1. **In-Editor CodeLens:** `[✓ Accept Hunk]` and `[✗ Reject Hunk]` inline above each modified block in the active document.
+  2. **In-Webview Staged Changes Inspector:** Dedicated tab inside the webview panel displaying syntax-highlighted deletion (`-`) and addition (`+`) diff hunks with per-hunk `[✓ Accept Hunk]` and `[✗ Reject Hunk]` buttons, plus global `[✓ Accept All]`, `[✗ Reject All]`, and `[🔍 Virtual Diff]`.
+  3. **Sidebar Quick Actions:** Dedicated `[✓ Accept]` and `[✗ Reject]` buttons in the Agent Panel header.
+  4. **Editor Title Toolbar:** Native `$(check)` and `$(close)` icons in the editor tab bar (vital for screen-reader and keyboard-accessibility modes).
 - **Native Undo:** Changes are applied through `vscode.WorkspaceEdit`. A single `Ctrl+Z` in the editor instantly reverts all accepted changes. An explicit `trueforge.undoLastTurn` command is also available.
 
-### 5. Resilience & Safe Cancellation
+### 5. Context Reasoning Engine Inspector & Live Telemetry
+- **Visual Token Budget Gauge:** Dedicated `🧠 Context Reasoning Engine` tab in the webview querying `/api/context_engine_stats` to render a live progress bar tracking token usage against the 4,000-token limit, alongside indexed AST classes and functions.
+- **Live Streaming Velocity Counter:** Real-time tokens/sec speed indicator and total streamed tokens counter during active model turns.
+- **Tool Latency Metrics:** Sub-millisecond execution badges on each tool call (e.g. `read_file (180ms)`, `propose_write (210ms)`).
+- **1-Click Audit Report Export:** The `[📋 Audit]` button instantly formats session metadata, model routing, tool call traces, and hunk decisions into a publication-ready Markdown report on the clipboard.
+
+### 6. Resilience & Safe Cancellation
 - **Instant Turn Cancellation:** Interactive **Stop** button dispatches `POST /api/v1/sessions/{id}/cancel` and aborts active SSE readers. The editor remains responsive, and no half-written or corrupted files touch disk.
 - **Transparent Model Failover:** Transparently routes failed primary calls to a designated healthy backup model without throwing blocking error modals.
 

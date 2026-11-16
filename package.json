@@ -9,7 +9,7 @@
     "build": "npm run build:webview && npm run build:extension",
     "dev": "code --extensionDevelopmentPath=./extension",
     "start:sidecar": "python backend/main.py --port 4545",
-    "start:trueforge": "npx @truefoundry/trueforge@latest --port 8790",
+    "start:trueforge": "npx -y @truefoundry/trueforge@0.183.1 --port 8790",
     "test": "node tests/run_tests.js"
   },
   "devDependencies": {

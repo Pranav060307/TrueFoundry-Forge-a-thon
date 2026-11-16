@@ -289,6 +289,24 @@ def get_mentions(query: str = ""):
         "symbols": matching_syms,
     }
 
+@app.get("/api/context_engine_stats")
+def get_context_engine_stats():
+    files = context_assembler.get_all_files()
+    symbols = context_assembler.get_all_symbols()
+    classes_count = len([s for s in symbols if s.get("kind") == "class"])
+    funcs_count = len([s for s in symbols if s.get("kind") in ("function", "method")])
+    return {
+        "status": "ready",
+        "workspace_root": workspace_root,
+        "total_files": len(files),
+        "total_symbols": len(symbols),
+        "classes_count": classes_count,
+        "functions_count": funcs_count,
+        "max_token_budget": 4000,
+        "ast_indexed": True,
+        "bm25_indexed": True,
+    }
+
 # ----------------- Google Gemini OpenAI Compatibility Bridge -----------------
 # Seamlessly preserves thought_signatures required for Gemini 3 tool calling
 GOOGLE_OPENAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"

@@ -80,10 +80,33 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
 
         case 'acceptAll':
           await vscode.commands.executeCommand('trueforge.acceptAllHunks');
+          await this.broadcastStatus();
           break;
 
         case 'rejectAll':
           await vscode.commands.executeCommand('trueforge.rejectAllHunks');
+          await this.broadcastStatus();
+          break;
+
+        case 'acceptHunk':
+          await vscode.commands.executeCommand('trueforge.acceptHunk', message.filePath, message.hunkId);
+          await this.broadcastStatus();
+          break;
+
+        case 'rejectHunk':
+          await vscode.commands.executeCommand('trueforge.rejectHunk', message.filePath, message.hunkId);
+          await this.broadcastStatus();
+          break;
+
+        case 'openDiff':
+          if (message.filePath) {
+            await this.hunkRegistry.openDiff(message.filePath);
+          }
+          break;
+
+        case 'undoLastTurn':
+          await vscode.commands.executeCommand('trueforge.undoLastTurn');
+          await this.broadcastStatus();
           break;
       }
     });
@@ -122,12 +145,43 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
     }
 
     const pendingCount = this.hunkRegistry.getPendingHunksCount();
+    const allDiffs = this.hunkRegistry.getAllFileDiffs();
+    const stagedFiles = allDiffs.map((fd) => ({
+      filePath: fd.filePath,
+      reason: fd.reason,
+      totalHunks: fd.hunks.length,
+      pendingCount: fd.hunks.filter((h) => h.state === 'pending').length,
+      hunks: fd.hunks.map((h) => ({
+        id: h.id,
+        filePath: h.filePath,
+        oldStart: h.oldStart,
+        oldLinesCount: h.oldLinesCount,
+        newStart: h.newStart,
+        newLinesCount: h.newLinesCount,
+        originalLines: h.originalLines,
+        proposedLines: h.proposedLines,
+        state: h.state,
+      })),
+    }));
+
+    let modelInfo: any = {};
+    try {
+      const cfg = ConfigLoader.load();
+      modelInfo = {
+        primary: cfg.models.primary.modelId,
+        fallback: cfg.models.fallback?.modelId,
+      };
+    } catch {
+      // ignore
+    }
 
     this.view.webview.postMessage({
       type: 'statusUpdate',
       trueforge: tfOk ? 'connected' : 'offline',
       sidecar: scOk ? 'healthy' : 'offline',
       pendingEdits: pendingCount,
+      stagedFiles,
+      models: modelInfo,
     });
   }
 
@@ -137,6 +191,10 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
     this.abortController = new AbortController();
     const turnId = `turn-${Date.now()}`;
     this.hunkRegistry.setTurnId(turnId);
+
+    const turnStartTime = Date.now();
+    let totalTokens = 0;
+    const toolTimes = new Map<string, number>();
 
     try {
       this.view.webview.postMessage({ type: 'turnCreated', turnId });
@@ -151,10 +209,20 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
           if (!this.view) return;
 
           if (event.type === 'model.message.delta' && event.content) {
-            this.view.webview.postMessage({ type: 'tokenDelta', content: event.content });
+            const added = Math.max(1, Math.round(event.content.length / 4));
+            totalTokens += added;
+            const elapsedSec = Math.max(0.5, (Date.now() - turnStartTime) / 1000);
+            const speed = Math.round(totalTokens / elapsedSec);
+            this.view.webview.postMessage({
+              type: 'tokenDelta',
+              content: event.content,
+              totalTokens,
+              speed,
+            });
           } else if (event.type === 'model.message' && event.tool_calls) {
             for (const tc of event.tool_calls) {
               const toolName = tc.function?.name || tc.tool_info?.name || 'tool';
+              toolTimes.set(toolName, Date.now());
               this.view.webview.postMessage({
                 type: 'toolCall',
                 toolName,
@@ -173,6 +241,15 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
                 });
               }
             }
+          } else if (event.type === 'tool.response' || event.type === 'tool.result') {
+            const toolName = (event as any).tool_info?.name || (event as any).tool || 'tool';
+            const duration = toolTimes.has(toolName) ? Date.now() - toolTimes.get(toolName)! : undefined;
+            this.view.webview.postMessage({
+              type: 'toolResult',
+              toolName,
+              duration,
+              result: (event as any).content || 'Completed successfully',
+            });
           }
         },
         (notice: string, fallbackModel: string) => {
