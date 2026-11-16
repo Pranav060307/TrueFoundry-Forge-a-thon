@@ -41,11 +41,28 @@ export class ConfigLoader {
   public static loadConfig(workspaceRoot?: string): AppConfig {
     const candidatePaths: string[] = [];
 
+    if (process.env.TRUEFORGE_CONFIG) {
+      candidatePaths.push(process.env.TRUEFORGE_CONFIG);
+    }
+
     if (workspaceRoot) {
       candidatePaths.push(path.join(workspaceRoot, 'agent', 'trueforge.config.json'));
       candidatePaths.push(path.join(workspaceRoot, 'trueforge.config.json'));
       candidatePaths.push(path.join(workspaceRoot, 'agent', 'trueforge.config.example.json'));
       candidatePaths.push(path.join(workspaceRoot, 'trueforge', 'trueforge.config.example.json'));
+    }
+
+    // Direct path to TrueFoundry repo config
+    candidatePaths.push('D:\\True foundary\\agent\\trueforge.config.json');
+    candidatePaths.push('D:\\True foundary\\trueforge.config.json');
+    candidatePaths.push(path.resolve(__dirname, '..', '..', 'agent', 'trueforge.config.json'));
+    candidatePaths.push(path.resolve(__dirname, '..', 'agent', 'trueforge.config.json'));
+    candidatePaths.push(path.resolve(__dirname, 'agent', 'trueforge.config.json'));
+    candidatePaths.push(path.resolve(__dirname, 'trueforge.config.json'));
+
+    const home = process.env.USERPROFILE || process.env.HOME || '';
+    if (home) {
+      candidatePaths.push(path.join(home, '.trueforge', 'trueforge.config.json'));
     }
 
     let configPath = candidatePaths.find((p) => fs.existsSync(p));
@@ -61,8 +78,12 @@ export class ConfigLoader {
       },
       models: {
         primary: {
-          provider: 'anthropic',
-          modelId: 'anthropic/claude-sonnet-4-6',
+          provider: 'gemini-bridge',
+          modelId: 'gemini-bridge/gemini-3-5-flash-lite',
+        },
+        fallback: {
+          provider: 'gemini-bridge',
+          modelId: 'gemini-bridge/gemini-flash-lite-latest',
         },
       },
       mcpServer: {
