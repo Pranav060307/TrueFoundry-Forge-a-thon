@@ -1,4 +1,4 @@
-import { createParser, ParsedEvent, ReconnectInterval } from 'eventsource-parser';
+import { createParser, EventSourceMessage } from 'eventsource-parser';
 
 export interface TurnInputItem {
   type: 'user.message' | 'user.tool_approval' | 'user.tool_response';
@@ -138,29 +138,29 @@ export class TrueForgeClient {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
 
-    const parser = createParser((parsed: ParsedEvent | ReconnectInterval) => {
-      if (parsed.type === 'event') {
+    const parser = createParser({
+      onEvent: (event: EventSourceMessage) => {
         try {
-          const event: TrueForgeEvent = JSON.parse(parsed.data);
+          const tfEvent: TrueForgeEvent = JSON.parse(event.data);
 
-          if (this.isEventDelta(event)) {
-            const base = eventsIndex.get(event.id);
+          if (this.isEventDelta(tfEvent)) {
+            const base = eventsIndex.get(tfEvent.id);
             if (base) {
-              this.mergeEventDelta(base, event);
+              this.mergeEventDelta(base, tfEvent);
             }
           } else {
-            eventsIndex.set(event.id, event);
+            eventsIndex.set(tfEvent.id, tfEvent);
           }
 
-          if (event.type === 'turn.done') {
-            finalEvent = event;
+          if (tfEvent.type === 'turn.done') {
+            finalEvent = tfEvent;
           }
 
-          onEvent(event);
+          onEvent(tfEvent);
         } catch (e) {
-          console.warn('[TrueForgeClient] Failed to parse SSE event JSON:', parsed.data, e);
+          console.warn('[TrueForgeClient] Failed to parse SSE event JSON:', event.data, e);
         }
-      }
+      },
     });
 
     try {
