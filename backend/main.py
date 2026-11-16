@@ -146,10 +146,10 @@ def search_workspace(query: str, is_regex: bool = False, file_pattern: Optional[
 
 @mcp.tool(
     name="propose_write",
-    description="REQUIRED tool to submit code edits. DO NOT print code in chat. Submit your proposed file modifications by calling this tool with path, content, and reason. Buffers in memory for human diff review."
+    description="REQUIRED tool to submit code edits. DO NOT print code in chat. Submit your proposed file modifications by calling this tool with path, content, reason, and optional target (if replacing a specific block). Buffers in memory for human diff review."
 )
-def propose_write(path: str, content: str, reason: str) -> str:
-    print(f"[Sidecar MCP Tool] propose_write(path={path}, reason={reason[:50]}..., length={len(content)})", flush=True)
+def propose_write(path: str, content: str, reason: str, target: Optional[str] = None) -> str:
+    print(f"[Sidecar MCP Tool] propose_write(path={path}, reason={reason[:50]}..., length={len(content)}, has_target={target is not None})", flush=True)
     full_path = os.path.abspath(os.path.join(workspace_root, path))
     norm_path = os.path.relpath(full_path, workspace_root).replace("\\", "/")
 
@@ -163,11 +163,15 @@ def propose_write(path: str, content: str, reason: str) -> str:
         except Exception as e:
             original_content = f"(Failed to read original: {str(e)})"
 
+    final_proposed = content
+    if target and target in original_content:
+        final_proposed = original_content.replace(target, content, 1)
+
     pending_edits[norm_path] = {
         "path": norm_path,
         "is_new_file": is_new_file,
         "original_content": original_content,
-        "proposed_content": content,
+        "proposed_content": final_proposed,
         "reason": reason,
     }
 

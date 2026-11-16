@@ -63,7 +63,7 @@ export class ModelFailoverManager {
             },
           },
           large_tool_response: {
-            enabled: true,
+            enabled: false,
           },
         },
         iteration_limit: this.config.agent?.iterationLimit || 50,

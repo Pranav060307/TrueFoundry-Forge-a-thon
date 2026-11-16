@@ -214,10 +214,11 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
 
       const instructions =
         'You are TrueForge Coding Agent embedded in VS Code. ' +
-        'You have MCP tools: read_file, search_workspace, list_dir, propose_write. ' +
-        'When instructed to edit or inspect code, immediately read the relevant file using read_file, ' +
-        'and propose modifications using propose_write(path, content, reason). ' +
-        'Be fast, concise, and focused. Never run redundant searches if the target file is known or mentioned.';
+        'CRITICAL RULES:\n' +
+        '1. When asked to inspect or edit a file, call read_file on that file first.\n' +
+        '2. Then IMMEDIATELY submit the modification by calling propose_write(path, content, reason) with the updated full content or target block.\n' +
+        '3. NEVER just print code in chat without calling propose_write.\n' +
+        '4. Do NOT perform unnecessary searches or commands when the target file is specified.';
 
       const promptContent = `${activeContext}${userPrompt}`;
 

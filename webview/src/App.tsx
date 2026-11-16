@@ -730,8 +730,8 @@ export default function App() {
               ) : (
                 m.content ? (
                   <MarkdownView content={m.content} />
-                ) : (
-                  <div style={{ fontSize: '12px', color: '#81c784', display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 0' }}>
+                ) : pendingEditsCount > 0 ? (
+                  <div style={{ fontSize: '12px', color: '#81c784', display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0' }}>
                     <span>⚡ Changes staged in memory.</span>
                     <button
                       onClick={() => setActiveTab('staged')}
@@ -748,6 +748,10 @@ export default function App() {
                     >
                       Review Diff →
                     </button>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '11px', color: '#90a4ae', fontStyle: 'italic' }}>
+                    Agent turn completed.
                   </div>
                 )
               )}
