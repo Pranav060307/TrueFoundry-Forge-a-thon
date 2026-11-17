@@ -79,11 +79,11 @@ export class ConfigLoader {
       models: {
         primary: {
           provider: 'gemini-bridge',
-          modelId: 'gemini-bridge/gemini-3-5-flash-lite',
+          modelId: 'gemini-bridge/gemini-flash-lite-latest',
         },
         fallback: {
           provider: 'gemini-bridge',
-          modelId: 'gemini-bridge/gemini-flash-lite-latest',
+          modelId: 'gemini-bridge/gemini-3-8-flash',
         },
       },
       mcpServer: {
