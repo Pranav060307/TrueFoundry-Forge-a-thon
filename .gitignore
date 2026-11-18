@@ -3,6 +3,7 @@ dist/
 out/
 *.vsix
 .vscode-test/
+*.tsbuildinfo
 
 # Configurations & secrets
 trueforge.config.json

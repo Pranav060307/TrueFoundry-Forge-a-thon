@@ -170,7 +170,7 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
 
     let modelInfo: any = {};
     try {
-      const cfg = ConfigLoader.load();
+      const cfg = ConfigLoader.loadConfig();
       modelInfo = {
         primary: cfg.models.primary.modelId,
         fallback: cfg.models.fallback?.modelId,

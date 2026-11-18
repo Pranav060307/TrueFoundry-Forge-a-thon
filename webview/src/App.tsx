@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MarkdownView } from './MarkdownView';
 
 // Acquire VS Code API once
+declare function acquireVsCodeApi(): any;
 let vscodeApi: any = null;
 if (typeof acquireVsCodeApi === 'function') {
   vscodeApi = acquireVsCodeApi();
