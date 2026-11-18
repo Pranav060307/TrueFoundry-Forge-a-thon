@@ -349,11 +349,29 @@ async def openai_chat_completions(req: Request):
     client = httpx2.AsyncClient(timeout=120.0)
 
     # Candidate models pool for instant failover if primary hits 429 quota or 503 overload
-    cascade_pool = ["gemini-flash-lite-latest", "gemini-3-flash-preview", "gemini-3.5-flash-lite"]
+    cascade_pool = [
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite-preview-02-05",
+        "gemini-1.5-flash",
+        "gemini-flash-lite-latest",
+        "gemini-3-flash-preview",
+    ]
     candidate_models = [model]
     for alt_model in cascade_pool:
         if alt_model not in candidate_models:
             candidate_models.append(alt_model)
+
+    # Check if a valid Google AI Studio key is provided in environment as fallback
+    raw_token = auth.replace("Bearer", "").strip()
+    effective_auth = auth
+    env_gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    if not raw_token.startswith("AIzaSy") and env_gemini_key and env_gemini_key.startswith("AIzaSy"):
+        effective_auth = f"Bearer {env_gemini_key}"
+        print(f"[Bridge Key Auto-Detect] Swapped incoming token with valid GEMINI_API_KEY from environment.", flush=True)
+    elif raw_token.startswith("AQ."):
+        print(f"[Bridge Key Notice] Token begins with 'AQ.' (TrueFoundry token). Google AI Studio Gemini endpoints expect 'AIzaSy...'.", flush=True)
+
+    headers = {"Authorization": effective_auth, "Content-Type": "application/json"}
 
     if not is_stream:
         try:
@@ -403,13 +421,21 @@ async def openai_chat_completions(req: Request):
 
         # Fallback if all models failed: perform final attempt with backoff
         if not google_resp or google_resp.status_code >= 400:
-            retry_sec = 6
-            print(f"[Bridge Quota Backoff] All models busy. Pausing {retry_sec}s for rate limit window reset...", flush=True)
+            retry_sec = 4
+            print(f"[Bridge Quota Backoff] Models busy. Pausing {retry_sec}s for rate limit window reset...", flush=True)
             await asyncio.sleep(retry_sec)
             google_req = client.build_request("POST", GOOGLE_OPENAI_URL, json=body, headers=headers)
             google_resp = await client.send(google_req, stream=True)
 
+        if google_resp.status_code >= 400:
+            err_content = await google_resp.aread()
+            await google_resp.aclose()
+            await client.aclose()
+            print(f"[Bridge Error Response] Forwarding HTTP {google_resp.status_code} JSON to client cleanly.", flush=True)
+            return Response(content=err_content, status_code=google_resp.status_code, media_type="application/json")
+
         async def stream_generator():
+            done_emitted = False
             try:
                 buffer = ""
                 async for chunk in google_resp.aiter_bytes():
@@ -437,7 +463,11 @@ async def openai_chat_completions(req: Request):
                                             print(f"\n[Bridge Stream] Cached thought signature for {t_id}: {sig[:30]}...", flush=True)
                             except Exception:
                                 pass
+                        elif line.strip().endswith("[DONE]"):
+                            done_emitted = True
                     yield chunk
+                if not done_emitted:
+                    yield b"\ndata: [DONE]\n\n"
             finally:
                 await google_resp.aclose()
                 await client.aclose()
@@ -445,6 +475,12 @@ async def openai_chat_completions(req: Request):
         return StreamingResponse(
             stream_generator(),
             status_code=google_resp.status_code,
+            headers={
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
             media_type="text/event-stream"
         )
 
