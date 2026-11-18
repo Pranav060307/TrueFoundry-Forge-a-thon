@@ -348,11 +348,28 @@ async def openai_chat_completions(req: Request):
     is_stream = body.get("stream", False)
     client = httpx2.AsyncClient(timeout=120.0)
 
+    # Candidate models pool for instant failover if primary hits 429 quota or 503 overload
+    cascade_pool = ["gemini-flash-lite-latest", "gemini-3-flash-preview", "gemini-3.5-flash-lite"]
+    candidate_models = [model]
+    for alt_model in cascade_pool:
+        if alt_model not in candidate_models:
+            candidate_models.append(alt_model)
+
     if not is_stream:
         try:
-            resp = await client.post(GOOGLE_OPENAI_URL, json=body, headers=headers)
+            last_resp = None
+            for cur_model in candidate_models:
+                req_body = dict(body)
+                req_body["model"] = cur_model
+                resp = await client.post(GOOGLE_OPENAI_URL, json=req_body, headers=headers)
+                last_resp = resp
+                if resp.status_code in (429, 500, 502, 503, 504):
+                    print(f"\n[Bridge Instant Cascade] Model '{cur_model}' returned {resp.status_code}. Seamlessly routing to next candidate...", flush=True)
+                    continue
+                break
+
             try:
-                data = resp.json()
+                data = last_resp.json()
                 for choice in data.get("choices", []):
                     msg = choice.get("message", {})
                     for tc in msg.get("tool_calls", []):
@@ -362,30 +379,35 @@ async def openai_chat_completions(req: Request):
                             thought_signatures[t_id] = sig
             except Exception:
                 pass
-            return Response(content=resp.content, status_code=resp.status_code, media_type="application/json")
+            return Response(content=last_resp.content, status_code=last_resp.status_code, media_type="application/json")
         finally:
             await client.aclose()
     else:
-        max_retries = 3
         google_resp = None
-        for attempt in range(max_retries):
+        for cur_model in candidate_models:
+            req_body = dict(body)
+            req_body["model"] = cur_model
+            for attempt in range(2):
+                google_req = client.build_request("POST", GOOGLE_OPENAI_URL, json=req_body, headers=headers)
+                google_resp = await client.send(google_req, stream=True)
+                if google_resp.status_code in (429, 500, 502, 503, 504):
+                    body_bytes = await google_resp.aread()
+                    await google_resp.aclose()
+                    print(f"\n[Bridge Instant Cascade] Model '{cur_model}' returned {google_resp.status_code}. Switching to next candidate model...", flush=True)
+                    break
+                # Valid response (200 or client error)
+                break
+            if google_resp and google_resp.status_code < 400:
+                print(f"[Bridge Connected] Streaming from model: {cur_model}", flush=True)
+                break
+
+        # Fallback if all models failed: perform final attempt with backoff
+        if not google_resp or google_resp.status_code >= 400:
+            retry_sec = 6
+            print(f"[Bridge Quota Backoff] All models busy. Pausing {retry_sec}s for rate limit window reset...", flush=True)
+            await asyncio.sleep(retry_sec)
             google_req = client.build_request("POST", GOOGLE_OPENAI_URL, json=body, headers=headers)
             google_resp = await client.send(google_req, stream=True)
-            if google_resp.status_code == 429 and attempt < max_retries - 1:
-                body_bytes = await google_resp.aread()
-                retry_sec = 15
-                try:
-                    err_json = json.loads(body_bytes.decode())
-                    for detail in err_json.get("error", {}).get("details", []):
-                        if "retryDelay" in detail:
-                            delay_str = detail["retryDelay"].rstrip("s")
-                            retry_sec = max(int(float(delay_str)), 5)
-                except Exception:
-                    pass
-                print(f"\n[Bridge 429 Throttle] Pausing {retry_sec}s for Google rate limit window reset...", flush=True)
-                await asyncio.sleep(retry_sec + 1)
-                continue
-            break
 
         async def stream_generator():
             try:

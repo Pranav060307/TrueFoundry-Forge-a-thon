@@ -299,6 +299,22 @@ export default function App() {
     }
   };
 
+  const handleQuickRun = (taskPrompt: string) => {
+    if (isStreaming) return;
+    setPrompt('');
+    setShowMentions(false);
+    setActiveTab('chat');
+
+    setMessages((prev) => [
+      ...prev,
+      { id: Date.now().toString(), role: 'user', content: taskPrompt },
+    ]);
+
+    if (vscodeApi) {
+      vscodeApi.postMessage({ type: 'sendMessage', prompt: taskPrompt });
+    }
+  };
+
   const handleStop = () => {
     if (vscodeApi) {
       vscodeApi.postMessage({ type: 'cancel' });
@@ -580,79 +596,141 @@ export default function App() {
           alignItems: 'center',
         }}
       >
-        <span style={{ fontSize: '10px', opacity: 0.65 }}>Preset Prompts:</span>
+        <span style={{ fontSize: '10px', opacity: 0.75, fontWeight: 'bold' }}>⚡ Demo Presets:</span>
+        {/* Task A Chip */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', borderRadius: '4px', border: '1px solid #0288d1', overflow: 'hidden' }}>
+          <button
+            style={{
+              fontSize: '10px',
+              padding: '3px 6px',
+              backgroundColor: '#01579b',
+              color: '#e1f5fe',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+            title="Load Task A prompt (Inline Edit helpers.py)"
+            onClick={() => {
+              setPrompt(TASK_A_PROMPT);
+              setActiveTab('chat');
+              textareaRef.current?.focus();
+            }}
+          >
+            Task A
+          </button>
+          <button
+            style={{
+              fontSize: '10px',
+              padding: '3px 6px',
+              backgroundColor: '#0288d1',
+              color: '#fff',
+              border: 'none',
+              cursor: isStreaming ? 'not-allowed' : 'pointer',
+              fontWeight: 'bold',
+            }}
+            title="1-Click Run Task A (get_debug_flag)"
+            onClick={() => handleQuickRun(TASK_A_PROMPT)}
+            disabled={isStreaming}
+          >
+            ▶ Run
+          </button>
+        </div>
+
+        {/* Task B Chip */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', borderRadius: '4px', border: '1px solid #7b1fa2', overflow: 'hidden' }}>
+          <button
+            style={{
+              fontSize: '10px',
+              padding: '3px 6px',
+              backgroundColor: '#4a148c',
+              color: '#f3e5f5',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+            title="Load Task B prompt (3-File Agent Mode flask config)"
+            onClick={() => {
+              setPrompt(TASK_B_PROMPT);
+              setActiveTab('chat');
+              textareaRef.current?.focus();
+            }}
+          >
+            Task B
+          </button>
+          <button
+            style={{
+              fontSize: '10px',
+              padding: '3px 6px',
+              backgroundColor: '#7b1fa2',
+              color: '#fff',
+              border: 'none',
+              cursor: isStreaming ? 'not-allowed' : 'pointer',
+              fontWeight: 'bold',
+            }}
+            title="1-Click Run Task B (3-File Agent Mode)"
+            onClick={() => handleQuickRun(TASK_B_PROMPT)}
+            disabled={isStreaming}
+          >
+            ▶ Run
+          </button>
+        </div>
+
+        {/* Task C Chip */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', borderRadius: '4px', border: '1px solid #f57c00', overflow: 'hidden' }}>
+          <button
+            style={{
+              fontSize: '10px',
+              padding: '3px 6px',
+              backgroundColor: '#e65100',
+              color: '#fff3e0',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+            title="Load Task C prompt (Failover Resilience)"
+            onClick={() => {
+              setPrompt(TASK_C_PROMPT);
+              setActiveTab('chat');
+              textareaRef.current?.focus();
+            }}
+          >
+            Task C
+          </button>
+          <button
+            style={{
+              fontSize: '10px',
+              padding: '3px 6px',
+              backgroundColor: '#f57c00',
+              color: '#fff',
+              border: 'none',
+              cursor: isStreaming ? 'not-allowed' : 'pointer',
+              fontWeight: 'bold',
+            }}
+            title="1-Click Run Task C (Transparent Failover)"
+            onClick={() => handleQuickRun(TASK_C_PROMPT)}
+            disabled={isStreaming}
+          >
+            ▶ Run
+          </button>
+        </div>
+
+        {/* Undo Button */}
         <button
           style={{
             fontSize: '10px',
-            padding: '2px 5px',
-            backgroundColor: 'var(--vscode-badge-background, #2d3748)',
-            color: 'var(--vscode-badge-foreground, #f7fafc)',
-            border: '1px solid var(--vscode-panel-border, #4a5568)',
-            borderRadius: '3px',
-            cursor: 'pointer',
-          }}
-          title="Paste Task A prompt into chat"
-          onClick={() => {
-            setPrompt(TASK_A_PROMPT);
-            setActiveTab('chat');
-            textareaRef.current?.focus();
-          }}
-        >
-          ⚡ Task A (Inline Edit)
-        </button>
-        <button
-          style={{
-            fontSize: '10px',
-            padding: '2px 5px',
-            backgroundColor: 'var(--vscode-badge-background, #2d3748)',
-            color: 'var(--vscode-badge-foreground, #f7fafc)',
-            border: '1px solid var(--vscode-panel-border, #4a5568)',
-            borderRadius: '3px',
-            cursor: 'pointer',
-          }}
-          title="Paste Task B prompt into chat"
-          onClick={() => {
-            setPrompt(TASK_B_PROMPT);
-            setActiveTab('chat');
-            textareaRef.current?.focus();
-          }}
-        >
-          ⚡ Task B (3-File Agent Mode)
-        </button>
-        <button
-          style={{
-            fontSize: '10px',
-            padding: '2px 5px',
-            backgroundColor: 'var(--vscode-badge-background, #2d3748)',
-            color: 'var(--vscode-badge-foreground, #f7fafc)',
-            border: '1px solid var(--vscode-panel-border, #4a5568)',
-            borderRadius: '3px',
-            cursor: 'pointer',
-          }}
-          title="Paste Task C prompt into chat"
-          onClick={() => {
-            setPrompt(TASK_C_PROMPT);
-            setActiveTab('chat');
-            textareaRef.current?.focus();
-          }}
-        >
-          ⚡ Task C (Failover)
-        </button>
-        <button
-          style={{
-            fontSize: '10px',
-            padding: '2px 5px',
+            padding: '3px 7px',
             backgroundColor: '#37474f',
             color: '#eceff1',
-            border: 'none',
-            borderRadius: '3px',
+            border: '1px solid #546e7a',
+            borderRadius: '4px',
             cursor: 'pointer',
             marginLeft: 'auto',
+            fontWeight: 'bold',
           }}
-          title="Revert last turn edits via native WorkspaceEdit undo"
+          title="Revert last turn edits via native WorkspaceEdit undo (Ctrl+Z)"
           onClick={handleUndo}
         >
-          ↺ Undo Turn
+          ↺ Undo (Ctrl+Z)
         </button>
       </div>
 
@@ -757,6 +835,261 @@ export default function App() {
               )}
             </div>
           ))}
+
+          {/* Live In-Chat Staged Changes Review Component */}
+          {stagedFiles.length > 0 && (
+            <div
+              style={{
+                margin: '10px 0',
+                padding: '10px',
+                backgroundColor: '#121719',
+                borderRadius: '6px',
+                border: '1px solid #2e7d32',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+              }}
+            >
+              {/* Header Bar */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '8px',
+                  paddingBottom: '6px',
+                  borderBottom: '1px solid #1e262a',
+                  flexWrap: 'wrap',
+                  gap: '6px',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#81c784' }}>
+                      ⚡ In-Memory Staging Buffer
+                    </span>
+                    <span
+                      style={{
+                        fontSize: '9px',
+                        padding: '1px 5px',
+                        borderRadius: '3px',
+                        backgroundColor: pendingEditsCount > 0 ? '#2e7d32' : '#37474f',
+                        color: '#fff',
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      {pendingEditsCount} Pending
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#90a4ae', marginTop: '2px' }}>
+                    Zero silent writes: Review hunks before applying cleanly to disk.
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button
+                    onClick={handleAcceptAll}
+                    disabled={pendingEditsCount === 0}
+                    style={{
+                      padding: '3px 8px',
+                      fontSize: '10px',
+                      backgroundColor: '#2e7d32',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '3px',
+                      cursor: pendingEditsCount > 0 ? 'pointer' : 'default',
+                      fontWeight: 'bold',
+                    }}
+                    title="Apply all pending hunks to disk"
+                  >
+                    ✓ Accept All
+                  </button>
+                  <button
+                    onClick={handleRejectAll}
+                    disabled={pendingEditsCount === 0}
+                    style={{
+                      padding: '3px 8px',
+                      fontSize: '10px',
+                      backgroundColor: '#c62828',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '3px',
+                      cursor: pendingEditsCount > 0 ? 'pointer' : 'default',
+                      fontWeight: 'bold',
+                    }}
+                    title="Discard all pending changes from buffer"
+                  >
+                    ✕ Reject All
+                  </button>
+                </div>
+              </div>
+
+              {/* Staged File Hunks */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {stagedFiles.map((sf) => (
+                  <div
+                    key={sf.filePath}
+                    style={{
+                      borderRadius: '4px',
+                      border: '1px solid #263238',
+                      backgroundColor: '#0c0f11',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {/* File Header */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '6px 8px',
+                        backgroundColor: '#161d20',
+                        borderBottom: '1px solid #1e262a',
+                      }}
+                    >
+                      <div>
+                        <span style={{ fontWeight: 'bold', fontSize: '11px', color: '#80cbc4' }}>
+                          📄 {sf.filePath}
+                        </span>
+                        {sf.reason && (
+                          <div style={{ fontSize: '10px', color: '#90a4ae', marginTop: '2px' }}>
+                            {sf.reason}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleOpenDiff(sf.filePath)}
+                        style={{
+                          padding: '2px 6px',
+                          fontSize: '10px',
+                          backgroundColor: '#1b2529',
+                          border: '1px solid #37474f',
+                          color: '#80cbc4',
+                          borderRadius: '3px',
+                          cursor: 'pointer',
+                        }}
+                        title="Open native VS Code side-by-side virtual diff"
+                      >
+                        🔍 Open Side-by-Side Diff
+                      </button>
+                    </div>
+
+                    {/* Hunks */}
+                    <div style={{ padding: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {sf.hunks.map((hunk, idx) => (
+                        <div
+                          key={hunk.id}
+                          style={{
+                            borderRadius: '3px',
+                            border: '1px solid #1c2326',
+                            backgroundColor: '#080a0b',
+                            padding: '6px',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              marginBottom: '4px',
+                              fontSize: '10px',
+                            }}
+                          >
+                            <span style={{ color: '#b0bec5', fontWeight: 'bold' }}>
+                              Hunk {idx + 1} (Line {hunk.oldStart} → {hunk.newStart})
+                            </span>
+                            <div>
+                              {hunk.state === 'pending' ? (
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                  <button
+                                    onClick={() => handleAcceptHunk(sf.filePath, hunk.id)}
+                                    style={{
+                                      padding: '2px 6px',
+                                      fontSize: '10px',
+                                      backgroundColor: '#2e7d32',
+                                      color: '#fff',
+                                      border: 'none',
+                                      borderRadius: '2px',
+                                      cursor: 'pointer',
+                                      fontWeight: 'bold',
+                                    }}
+                                  >
+                                    ✓ Accept Hunk
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectHunk(sf.filePath, hunk.id)}
+                                    style={{
+                                      padding: '2px 6px',
+                                      fontSize: '10px',
+                                      backgroundColor: '#c62828',
+                                      color: '#fff',
+                                      border: 'none',
+                                      borderRadius: '2px',
+                                      cursor: 'pointer',
+                                      fontWeight: 'bold',
+                                    }}
+                                  >
+                                    ✕ Reject
+                                  </button>
+                                </div>
+                              ) : (
+                                <span
+                                  style={{
+                                    color: hunk.state === 'accepted' ? '#81c784' : '#e57373',
+                                    fontWeight: 'bold',
+                                    fontSize: '9px',
+                                  }}
+                                >
+                                  {hunk.state === 'accepted' ? '✓ APPLIED TO DISK' : '✕ REJECTED'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Code Diff Display */}
+                          <pre
+                            style={{
+                              margin: 0,
+                              padding: '4px',
+                              backgroundColor: '#040506',
+                              borderRadius: '2px',
+                              fontFamily: 'monospace',
+                              fontSize: '10px',
+                              maxHeight: '120px',
+                              overflowY: 'auto',
+                            }}
+                          >
+                            {hunk.originalLines.map((l, i) => (
+                              <div
+                                key={`orig-${i}`}
+                                style={{
+                                  color: '#ef5350',
+                                  backgroundColor: 'rgba(239, 83, 80, 0.15)',
+                                  padding: '1px 3px',
+                                }}
+                              >
+                                - {l}
+                              </div>
+                            ))}
+                            {hunk.proposedLines.map((l, i) => (
+                              <div
+                                key={`prop-${i}`}
+                                style={{
+                                  color: '#66bb6a',
+                                  backgroundColor: 'rgba(102, 187, 106, 0.15)',
+                                  padding: '1px 3px',
+                                }}
+                              >
+                                + {l}
+                              </div>
+                            ))}
+                          </pre>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {isStreaming && (
             <div style={{ fontSize: '10px', color: '#80cbc4', fontStyle: 'italic', display: 'flex', gap: '6px', alignItems: 'center' }}>

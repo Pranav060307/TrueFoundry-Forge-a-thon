@@ -83,7 +83,7 @@ export class ConfigLoader {
         },
         fallback: {
           provider: 'gemini-bridge',
-          modelId: 'gemini-bridge/gemini-3-8-flash',
+          modelId: 'gemini-bridge/gemini-3-flash-preview',
         },
       },
       mcpServer: {
