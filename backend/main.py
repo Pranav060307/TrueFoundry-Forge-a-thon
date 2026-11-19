@@ -350,28 +350,17 @@ async def openai_chat_completions(req: Request):
 
     # Candidate models pool for instant failover if primary hits 429 quota or 503 overload
     cascade_pool = [
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite-preview-02-05",
-        "gemini-1.5-flash",
         "gemini-flash-lite-latest",
+        "gemini-2.5-flash",
         "gemini-3-flash-preview",
+        "gemini-2.5-flash-lite",
     ]
     candidate_models = [model]
     for alt_model in cascade_pool:
         if alt_model not in candidate_models:
             candidate_models.append(alt_model)
 
-    # Check if a valid Google AI Studio key is provided in environment as fallback
-    raw_token = auth.replace("Bearer", "").strip()
-    effective_auth = auth
-    env_gemini_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if not raw_token.startswith("AIzaSy") and env_gemini_key and env_gemini_key.startswith("AIzaSy"):
-        effective_auth = f"Bearer {env_gemini_key}"
-        print(f"[Bridge Key Auto-Detect] Swapped incoming token with valid GEMINI_API_KEY from environment.", flush=True)
-    elif raw_token.startswith("AQ."):
-        print(f"[Bridge Key Notice] Token begins with 'AQ.' (TrueFoundry token). Google AI Studio Gemini endpoints expect 'AIzaSy...'.", flush=True)
-
-    headers = {"Authorization": effective_auth, "Content-Type": "application/json"}
+    headers = {"Authorization": auth, "Content-Type": "application/json"}
 
     if not is_stream:
         try:
@@ -379,12 +368,23 @@ async def openai_chat_completions(req: Request):
             for cur_model in candidate_models:
                 req_body = dict(body)
                 req_body["model"] = cur_model
-                resp = await client.post(GOOGLE_OPENAI_URL, json=req_body, headers=headers)
-                last_resp = resp
-                if resp.status_code in (429, 500, 502, 503, 504):
-                    print(f"\n[Bridge Instant Cascade] Model '{cur_model}' returned {resp.status_code}. Seamlessly routing to next candidate...", flush=True)
+                try:
+                    resp = await client.post(GOOGLE_OPENAI_URL, json=req_body, headers=headers)
+                    last_resp = resp
+                    if resp.status_code in (429, 500, 502, 503, 504):
+                        print(f"\n[Bridge Instant Cascade] Model '{cur_model}' returned {resp.status_code}. Seamlessly routing to next candidate...", flush=True)
+                        continue
+                    break
+                except Exception as exc:
+                    print(f"\n[Bridge Request Error] Failed reaching Google API with model '{cur_model}': {exc}", flush=True)
                     continue
-                break
+
+            if not last_resp:
+                return Response(
+                    content=json.dumps({"error": {"message": "All bridge models unreachable", "type": "bridge_error"}}),
+                    status_code=502,
+                    media_type="application/json"
+                )
 
             try:
                 data = last_resp.json()
@@ -406,15 +406,19 @@ async def openai_chat_completions(req: Request):
             req_body = dict(body)
             req_body["model"] = cur_model
             for attempt in range(2):
-                google_req = client.build_request("POST", GOOGLE_OPENAI_URL, json=req_body, headers=headers)
-                google_resp = await client.send(google_req, stream=True)
-                if google_resp.status_code in (429, 500, 502, 503, 504):
-                    body_bytes = await google_resp.aread()
-                    await google_resp.aclose()
-                    print(f"\n[Bridge Instant Cascade] Model '{cur_model}' returned {google_resp.status_code}. Switching to next candidate model...", flush=True)
+                try:
+                    google_req = client.build_request("POST", GOOGLE_OPENAI_URL, json=req_body, headers=headers)
+                    google_resp = await client.send(google_req, stream=True)
+                    if google_resp.status_code in (429, 500, 502, 503, 504):
+                        body_bytes = await google_resp.aread()
+                        await google_resp.aclose()
+                        print(f"\n[Bridge Instant Cascade] Model '{cur_model}' returned {google_resp.status_code}. Switching to next candidate model...", flush=True)
+                        break
+                    # Valid response (200 or client error)
                     break
-                # Valid response (200 or client error)
-                break
+                except Exception as exc:
+                    print(f"\n[Bridge Stream Error] Failed reaching Google API with model '{cur_model}': {exc}", flush=True)
+                    break
             if google_resp and google_resp.status_code < 400:
                 print(f"[Bridge Connected] Streaming from model: {cur_model}", flush=True)
                 break
@@ -424,8 +428,17 @@ async def openai_chat_completions(req: Request):
             retry_sec = 4
             print(f"[Bridge Quota Backoff] Models busy. Pausing {retry_sec}s for rate limit window reset...", flush=True)
             await asyncio.sleep(retry_sec)
-            google_req = client.build_request("POST", GOOGLE_OPENAI_URL, json=body, headers=headers)
-            google_resp = await client.send(google_req, stream=True)
+            try:
+                google_req = client.build_request("POST", GOOGLE_OPENAI_URL, json=body, headers=headers)
+                google_resp = await client.send(google_req, stream=True)
+            except Exception as exc:
+                print(f"[Bridge Final Error] Could not connect to Google API: {exc}", flush=True)
+                await client.aclose()
+                return Response(
+                    content=json.dumps({"error": {"message": f"Bridge connection error: {str(exc)}", "type": "bridge_error"}}),
+                    status_code=502,
+                    media_type="application/json"
+                )
 
         if google_resp.status_code >= 400:
             err_content = await google_resp.aread()
