@@ -112,6 +112,26 @@ export class AgentWebviewProvider implements vscode.WebviewViewProvider {
           await vscode.commands.executeCommand('trueforge.undoLastTurn');
           await this.broadcastStatus();
           break;
+
+        case 'resetWorkspace': {
+          try {
+            await this.sidecarManager.clearPendingEdits();
+            this.hunkRegistry.clearAll();
+            const wsFolders = vscode.workspace.workspaceFolders;
+            if (wsFolders && wsFolders.length > 0) {
+              const root = wsFolders[0].uri.fsPath;
+              try {
+                require('child_process').execSync('git checkout -f && git clean -fd', { cwd: root });
+              } catch {}
+            }
+            await this.broadcastStatus();
+            this.view?.webview.postMessage({ type: 'workspaceResetDone' });
+            vscode.window.showInformationMessage('TrueForge: Workspace and staged buffer reset successfully.');
+          } catch (e: any) {
+            vscode.window.showErrorMessage(`Failed to reset workspace: ${e.message}`);
+          }
+          break;
+        }
       }
     });
 

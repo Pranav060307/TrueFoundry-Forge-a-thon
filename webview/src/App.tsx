@@ -206,6 +206,13 @@ export default function App() {
           setToast({ message: msg.message, type: 'info' });
           break;
 
+        case 'workspaceResetDone':
+          setMessages([]);
+          setPendingEditsCount(0);
+          setStagedFiles([]);
+          setToast({ message: '✨ Clean slate ready for demo recording.', type: 'success' });
+          break;
+
         case 'mentionsResult':
           setMentionSuggestions(msg.items || []);
           break;
@@ -391,6 +398,16 @@ export default function App() {
     setToast({ message: '📋 Audit report copied to clipboard!', type: 'success' });
   };
 
+  const handleResetWorkspace = () => {
+    if (vscodeApi) {
+      vscodeApi.postMessage({ type: 'resetWorkspace' });
+    }
+    setMessages([]);
+    setPendingEditsCount(0);
+    setStagedFiles([]);
+    setToast({ message: '✨ Workspace and staged changes reset!', type: 'success' });
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: '10px', boxSizing: 'border-box', fontFamily: 'var(--vscode-font-family, sans-serif)' }}>
       {/* Toast Alert Banner */}
@@ -505,6 +522,23 @@ export default function App() {
             title="Copy structured execution audit log to clipboard"
           >
             📋 Audit
+          </button>
+
+          <button
+            onClick={handleResetWorkspace}
+            style={{
+              padding: '2px 6px',
+              fontSize: '10px',
+              backgroundColor: '#b71c1c',
+              border: 'none',
+              color: '#fff',
+              borderRadius: '3px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+            }}
+            title="Discard all staged edits and restore clean git working tree in Flask"
+          >
+            🧹 Reset Demo
           </button>
         </div>
       </div>
